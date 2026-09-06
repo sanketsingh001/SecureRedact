@@ -1,9 +1,26 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>SecureRedact</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Sanket Singh</Authors>
+    <Company>Sanket Singh</Company>
+    <Description>High-throughput format-preserving PII masking and reversible AES-256-GCM tokenization engine for fintech JSON payloads. Validates statutory IDs (Aadhaar, PAN, GSTIN, Cards, UPI, SSN, IBAN, DL, Voter ID, Passport) on arbitrary-key nested JSON.</Description>
+    <PackageTags>pii;masking;redaction;fintech;gdpr;hipaa;aadhaar;credit-card;pan;gstin;upi;security;tokenization;format-preserving</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/sanketsingh001/SecureRedact</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/sanketsingh001/SecureRedact</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>

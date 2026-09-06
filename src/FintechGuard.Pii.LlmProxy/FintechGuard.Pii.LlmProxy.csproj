@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\FintechGuard.Pii\FintechGuard.Pii.csproj" />
@@ -8,6 +8,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>SecureRedact.LlmProxy</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Sanket Singh</Authors>
+    <Company>Sanket Singh</Company>
+    <Description>LLM privacy proxy for SecureRedact. Intercepts and masks PII in prompts sent to OpenAI, Gemini, Claude, and restores reversible tokens in LLM completions.</Description>
+    <PackageTags>pii;masking;llm;openai;gemini;claude;privacy;proxy;security</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/sanketsingh001/SecureRedact</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/sanketsingh001/SecureRedact</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>
