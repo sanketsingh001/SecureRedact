@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/FintechGuard.Pii.Benchmarks/FintechGuard.Pii.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/FintechGuard.Pii.AspNetCore/FintechGuard.Pii.AspNetCore.csproj" />
+    <Project Path="src/FintechGuard.Pii.LlmProxy/FintechGuard.Pii.LlmProxy.csproj" />
+    <Project Path="src/FintechGuard.Pii/FintechGuard.Pii.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/FintechGuard.WebApi/FintechGuard.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FintechGuard.Pii.Tests/FintechGuard.Pii.Tests.csproj" />
+  </Folder>
+</Solution>

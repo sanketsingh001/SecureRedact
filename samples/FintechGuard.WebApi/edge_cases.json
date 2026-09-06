@@ -1,0 +1,90 @@
+{
+  "test_metadata": {
+    "suite_name": "FintechGuard Enterprise PII Test Suite",
+    "version": "1.0.0",
+    "description": "Comprehensive edge-case and exception validation JSON for deeply nested fintech payloads, arbitrary keys, algorithmic checksums, false-positive traps, mixed types, and Unicode.",
+    "generated_at": "2026-09-06T15:30:00Z"
+  },
+  "deeply_nested_arbitrary_keys": {
+    "level_1_key_x0": {
+      "level_2_key_a99": {
+        "level_3_key_obj": {
+          "level_4_array": [
+            {
+              "level_5_subitem": {
+                "level_6_deep_target": {
+                  "valid_credit_card_luhn": "4532-0151-1283-0366",
+                  "valid_indian_pan": "ABCPE1234F",
+                  "valid_upi_handle": "vikram.sharma@okhdfcbank"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "statutory_and_global_pii_valid": {
+    "credit_card_visa": "4532-0151-1283-0366",
+    "aadhaar_number": "2123 4567 8901",
+    "pan_card_individual": "ABCPE1234F",
+    "gstin_maharashtra": "27ABCPE1234F1Z5",
+    "ifsc_bank_code": "HDFC0000240",
+    "upi_vpa": "vikram.sharma@okhdfcbank",
+    "global_iban_germany": "DE89370400440532013000",
+    "us_ssn": "123-45-6789",
+    "email_address": "customer.finance@secure-fintech.com",
+    "ipv4_address": "192.168.1.100",
+    "indian_mobile": "+91 9876543210",
+    "driving_license": "DL14 20110012345",
+    "voter_id_epic": "ABC1234567",
+    "indian_passport": "K1234567"
+  },
+  "false_positive_traps_must_NOT_be_masked": {
+    "card_candidate_failing_luhn_mod10": "4532-0151-1283-0367",
+    "aadhaar_candidate_failing_verhoeff": "2123 4567 8902",
+    "pan_candidate_invalid_4th_char_entity": "ABCXE1234F",
+    "gstin_candidate_invalid_state_code_99": "99XYZPE1234F1Z5",
+    "ifsc_candidate_invalid_5th_char_not_zero": "HDFC1000240",
+    "upi_candidate_unrecognized_psp_domain": "vikram.sharma@notabank",
+    "ssn_candidate_illegal_area_000": "000-45-6789",
+    "ssn_candidate_illegal_area_666": "666-45-6789",
+    "ipv4_candidate_out_of_range_octets": "999.888.777.666",
+    "mobile_candidate_invalid_starting_digit_1": "+91 1234567890",
+    "safe_business_token_order": "ORDER_REF_TXN_987654321",
+    "safe_currency_code": "EUR_CURRENCY_CODE",
+    "safe_transaction_status": "TXN_APPROVED_BY_GATEWAY",
+    "plain_text_with_at_symbol": "meeting@3pm_today"
+  },
+  "mixed_datatypes_and_edge_values": {
+    "safe_numeric_id_not_a_card": 9876543210123456,
+    "transaction_amount_float": 14999.75,
+    "negative_integer": -42,
+    "zero_integer": 0,
+    "boolean_true": true,
+    "boolean_false": false,
+    "explicit_null_field": null,
+    "empty_nested_object": {},
+    "empty_array": [],
+    "array_of_primitives": [
+      "EUR",
+      100,
+      true,
+      null,
+      "4532-0151-1283-0366"
+    ]
+  },
+  "free_text_sentences_with_embedded_pii": {
+    "audit_log_entry": "Audit alert: User vikram.sharma@okhdfcbank transferred funds using card 4532-0151-1283-0366 from IP 192.168.1.100 while verifying PAN ABCPE1234F.",
+    "support_ticket_notes": "Customer called from +91 9876543210 regarding payment to account DE89370400440532013000 with Aadhaar 2123 4567 8901."
+  },
+  "unicode_and_escaping_edge_cases": {
+    "escaped_quotes_and_newlines": "String with \"embedded quotes\", \t tabs, and \n newlines.",
+    "devanagari_hindi_text": "नमस्ते (Namaste) - डिजिटल भुगतान प्रणाली 💳 🔒 🇮🇳",
+    "special_characters_in_keys": {
+      "@meta.system_id": "SYS_GATEWAY_NODE_01",
+      "user:profile:identifier": "2123 4567 8901",
+      "flag#priority": "CRITICAL"
+    }
+  }
+}
