@@ -3,9 +3,15 @@
 > **High-Throughput .NET 10 PII Masking & Format-Preserving Reversible Tokenization Engine for Fintech Payloads.**
 > Designed for deeply nested, arbitrary-key JSON payloads where key names have no semantic guarantee.
 
+[![NuGet](https://img.shields.io/nuget/v/SecureRedact.svg)](https://www.nuget.org/packages/SecureRedact)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Build & Test](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)](#)
 [![Target](https://img.shields.io/badge/.NET-10.0-blue.svg)](#)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM-orange.svg)](#)
+
+```bash
+dotnet add package SecureRedact
+```
 
 ---
 
