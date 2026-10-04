@@ -5,11 +5,11 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SecureRedact.LlmProxy</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Authors>Sanket Singh</Authors>
     <Company>Sanket Singh</Company>
     <Description>LLM privacy proxy for SecureRedact. Intercepts and masks PII in prompts sent to OpenAI, Gemini, Claude, and restores reversible tokens in LLM completions.</Description>

@@ -1,12 +1,12 @@
 # SecureRedact (FintechGuard.Pii)
 
-> **High-Throughput .NET 10 PII Masking & Format-Preserving Reversible Tokenization Engine for Fintech Payloads.**
+> **High-Throughput .NET 8 & 10 PII Masking & Format-Preserving Reversible Tokenization Engine for Fintech Payloads.**
 > Designed for deeply nested, arbitrary-key JSON payloads where key names have no semantic guarantee.
 
 [![NuGet](https://img.shields.io/nuget/v/SecureRedact.svg)](https://www.nuget.org/packages/SecureRedact)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Build & Test](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)](#)
-[![Target](https://img.shields.io/badge/.NET-10.0-blue.svg)](#)
+[![Target](https://img.shields.io/badge/.NET-8.0%20|%2010.0-blue.svg)](#)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM-orange.svg)](#)
 
 ```bash
@@ -17,7 +17,7 @@ dotnet add package SecureRedact
 
 ## 1. Why FintechGuard.Pii vs Microsoft Presidio?
 
-| Capability | Microsoft Presidio (Python) | FintechGuard.Pii (.NET 10) |
+| Capability | Microsoft Presidio (Python) | FintechGuard.Pii (.NET 8/10) |
 | :--- | :--- | :--- |
 | **Throughput & Speed** | Slow Python GIL; ~100-300 records/sec on nested dicts | **3,500+ records/sec (Masking)**, **52,000+ records/sec (Unmasking)** |
 | **Nested JSON Support** | Clunky manual dictionary recursion | **Native streaming** via `Utf8JsonReader` and `Utf8JsonWriter` |
@@ -235,6 +235,34 @@ var detections = proxy.AuditPrompt("Customer card is 4532-0151-1283-0366, UPI is
 - **Google Gemini**
 - **Anthropic Claude**
 - **Any custom endpoint** via `PiiSafeClientFactory.Create(engine, "https://your-llm.com")`
+
+---
+
+## 9. Azure Data Explorer / Kusto Integration (`FintechGuard.Pii.AzureDataExplorer`)
+
+A dedicated NuGet package for teams using the official `Kusto.Ingest` SDK. Easily wrap your client in 1 line of code to transparently mask PII in all JSON/CSV streams and files before they are forwarded to Azure Data Explorer (ADX) — with zero changes to your KQL queries or table schemas!
+
+### One-Line Integration
+```csharp
+using FintechGuard.Pii.AzureDataExplorer;
+
+// In Program.cs of any team:
+builder.Services.AddSecureRedactForAdx(
+    kustoFactory: sp => KustoIngestFactory.CreateQueuedIngestClient(new KustoConnectionStringBuilder("...").WithAadApplicationKeyAuthentication(...)),
+    piiMasterKey: "your-32-byte-master-key!"
+);
+```
+
+Or, wrap an existing client instance:
+```csharp
+IKustoIngestClient rawClient = KustoIngestFactory.CreateQueuedIngestClient(kcsb);
+IKustoIngestClient secureClient = rawClient.WithSecureRedact(engine);
+```
+
+### What Happens Automatically:
+- **`IngestFromStreamAsync` & `IngestFromFileAsync`**: Any JSON or multi-JSON payload is intercepted and streamed through the `PiiEngine` in memory. The sanitized stream is then forwarded to the real Kusto ingest client.
+- **Data Source Awareness**: It automatically bypasses masking for unsupported formats (CSV, TSV, Parquet) to avoid data corruption, focusing purely on JSON schemas.
+- **Zero Allocations**: Utilizes streaming for high throughput and minimal memory overhead during data ingestion.
 
 ---
 

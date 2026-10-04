@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/FintechGuard.Pii.AspNetCore/FintechGuard.Pii.AspNetCore.csproj" />
+    <Project Path="src/FintechGuard.Pii.AzureDataExplorer/FintechGuard.Pii.AzureDataExplorer.csproj" />
     <Project Path="src/FintechGuard.Pii.LlmProxy/FintechGuard.Pii.LlmProxy.csproj" />
     <Project Path="src/FintechGuard.Pii/FintechGuard.Pii.csproj" />
   </Folder>

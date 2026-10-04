@@ -1,15 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\FintechGuard.Pii\FintechGuard.Pii.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Azure.Kusto.Ingest" Version="14.2.2" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PackageId>SecureRedact</PackageId>
-    <Version>1.1.0</Version>
+    <PackageId>SecureRedact.AzureDataExplorer</PackageId>
+    <Version>1.0.0</Version>
     <Authors>Sanket Singh</Authors>
     <Company>Sanket Singh</Company>
-    <Description>High-throughput format-preserving PII masking and reversible AES-256-GCM tokenization engine for fintech JSON payloads. Validates statutory IDs (Aadhaar, PAN, GSTIN, Cards, UPI, SSN, IBAN, DL, Voter ID, Passport) on arbitrary-key nested JSON.</Description>
-    <PackageTags>pii;masking;redaction;fintech;gdpr;hipaa;aadhaar;credit-card;pan;gstin;upi;security;tokenization;format-preserving</PackageTags>
+    <Description>Azure Data Explorer (ADX / Kusto) integration for SecureRedact. Wraps IKustoIngestClient with a single .WithSecureRedact() call so all streams and files are transparently PII-masked before ingestion. Zero changes to your KQL queries or table schemas.</Description>
+    <PackageTags>pii;masking;kusto;adx;azure-data-explorer;kusto-ingest;security;fintech;gdpr;redaction</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/sanketsingh001/SecureRedact</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
