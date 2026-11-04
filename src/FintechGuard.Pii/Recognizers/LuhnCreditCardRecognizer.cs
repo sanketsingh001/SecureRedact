@@ -12,7 +12,7 @@ public sealed partial class LuhnCreditCardRecognizer : IPiiRecognizer
     public string Name => "CreditCard_Luhn";
     public PiiType PiiType => PiiType.CreditCard;
 
-    [GeneratedRegex(@"\b(?:\d[ -]*?){13,19}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b(?:\d[ -]*?){13,19}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex CardPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

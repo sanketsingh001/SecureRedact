@@ -12,7 +12,7 @@ public sealed partial class GstinRecognizer : IPiiRecognizer
     public string Name => "Indian_GSTIN";
     public PiiType PiiType => PiiType.Gstin;
 
-    [GeneratedRegex(@"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex GstinPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

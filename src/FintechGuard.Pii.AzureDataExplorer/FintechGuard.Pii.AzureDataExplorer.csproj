@@ -13,7 +13,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SecureRedact.AzureDataExplorer</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.2.0</Version>
     <Authors>Sanket Singh</Authors>
     <Company>Sanket Singh</Company>
     <Description>Azure Data Explorer (ADX / Kusto) integration for SecureRedact. Wraps IKustoIngestClient with a single .WithSecureRedact() call so all streams and files are transparently PII-masked before ingestion. Zero changes to your KQL queries or table schemas.</Description>

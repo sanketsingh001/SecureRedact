@@ -14,10 +14,10 @@ public sealed partial class PiiEngine : IPiiEngine
     private readonly IReadOnlyList<IPiiRecognizer> _recognizers;
     private readonly IReversibleCrypto? _crypto;
 
-    [GeneratedRegex(@"(?:XXXX[ -]XXXX[ -]\d{4}|\d{4}[ -]\*{4}[ -]\*{4}[ -]\d{4}|[^\s,;:""'()<>\[\]]+)#fp\[([a-zA-Z0-9_\-]+)\]", RegexOptions.Compiled)]
+    [GeneratedRegex(@"(?:XXXX[ -]XXXX[ -]\d{4}|\d{4}[ -]\*{4}[ -]\*{4}[ -]\d{4}|[^\s,;:""'()<>\[\]]+)#fp\[([a-zA-Z0-9_\-]+)\]", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex FormatPreservingPattern();
 
-    [GeneratedRegex(@"ENC\{([a-zA-Z0-9_]+):([a-zA-Z0-9_\-]+)\}", RegexOptions.Compiled)]
+    [GeneratedRegex(@"ENC\{([a-zA-Z0-9_]+):([a-zA-Z0-9_\-]+)\}", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex ExplicitEncPattern();
 
     public PiiEngine(PiiEngineOptions options)
@@ -28,15 +28,16 @@ public sealed partial class PiiEngine : IPiiEngine
         _crypto = options.CryptoProvider;
     }
 
-    public IReadOnlyList<PiiMatch> Scan(string text)
+    public IReadOnlyList<PiiMatch> Scan(string text, string? propertyName = null)
     {
         if (string.IsNullOrWhiteSpace(text))
             return Array.Empty<PiiMatch>();
 
         var matches = new List<PiiMatch>();
+        var context = new RecognitionContext { PropertyName = propertyName, ContentType = "json" };
         foreach (var recognizer in _recognizers)
         {
-            var detected = recognizer.Recognize(text);
+            var detected = recognizer.Recognize(text, context);
             matches.AddRange(detected);
         }
 
@@ -89,12 +90,23 @@ public sealed partial class PiiEngine : IPiiEngine
 
         // Merge/resolve overlapping matches (take highest confidence / longest)
         var nonOverlapping = FilterOverlapping(matches);
+        
+        // Filter by minimum confidence
+        nonOverlapping = nonOverlapping.Where(m => m.Confidence >= _options.MinConfidence).ToList();
+
+        return ApplyMatches(value, nonOverlapping, scope);
+    }
+
+    private string ApplyMatches(string value, IReadOnlyList<PiiMatch> matches, JsonMaskingScope? scope)
+    {
+        if (matches.Count == 0)
+            return value;
 
         // Replace matches from right to left to preserve indices
         var sb = new StringBuilder(value);
-        for (int i = nonOverlapping.Count - 1; i >= 0; i--)
+        for (int i = matches.Count - 1; i >= 0; i--)
         {
-            var match = nonOverlapping[i];
+            var match = matches[i];
             string masked = ApplyMask(match.RawValue, match.Type, scope?.StrategyOverride);
             sb.Remove(match.Index, match.Length);
             sb.Insert(match.Index, masked);
@@ -224,8 +236,27 @@ public sealed partial class PiiEngine : IPiiEngine
 
         using var inStream = new MemoryStream(Encoding.UTF8.GetBytes(json));
         using var outStream = new MemoryStream();
-        MaskJsonStream(inStream, outStream, scope);
+        ProcessJsonStream(inStream, outStream, isMasking: true, scope: scope, detections: null);
         return Encoding.UTF8.GetString(outStream.ToArray());
+    }
+
+    public MaskingResult MaskJsonWithAudit(string json, JsonMaskingScope? scope = null)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return new MaskingResult { Output = json, Detections = Array.Empty<PiiDetection>(), HasPii = false };
+
+        var detections = new List<PiiDetection>();
+        using var inStream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        using var outStream = new MemoryStream();
+        
+        ProcessJsonStream(inStream, outStream, isMasking: true, scope: scope, detections: detections);
+        
+        return new MaskingResult
+        {
+            Output = Encoding.UTF8.GetString(outStream.ToArray()),
+            Detections = detections.AsReadOnly(),
+            HasPii = detections.Count > 0
+        };
     }
 
     public string UnmaskJson(string maskedJson)
@@ -241,23 +272,81 @@ public sealed partial class PiiEngine : IPiiEngine
 
     public void MaskJsonStream(Stream inputUtf8Json, Stream outputUtf8Json)
     {
-        ProcessJsonStream(inputUtf8Json, outputUtf8Json, isMasking: true, scope: null);
+        ProcessJsonStream(inputUtf8Json, outputUtf8Json, isMasking: true, scope: null, detections: null);
     }
 
     public void MaskJsonStream(Stream inputUtf8Json, Stream outputUtf8Json, JsonMaskingScope? scope = null)
     {
-        ProcessJsonStream(inputUtf8Json, outputUtf8Json, isMasking: true, scope: scope);
+        ProcessJsonStream(inputUtf8Json, outputUtf8Json, isMasking: true, scope: scope, detections: null);
     }
 
     public void UnmaskJsonStream(Stream inputUtf8Json, Stream outputUtf8Json)
     {
-        ProcessJsonStream(inputUtf8Json, outputUtf8Json, isMasking: false, scope: null);
+        ProcessJsonStream(inputUtf8Json, outputUtf8Json, isMasking: false, scope: null, detections: null);
     }
 
-    private void ProcessJsonStream(Stream input, Stream output, bool isMasking, JsonMaskingScope? scope = null)
+    private void ProcessJsonStream(Stream input, Stream output, bool isMasking, JsonMaskingScope? scope = null, List<PiiDetection>? detections = null)
     {
-        // Read stream into byte buffer with support for arbitrary nesting depth
-        // We use JsonDocument or chunked streaming
+        using var activity = FintechGuard.Pii.Diagnostics.PiiTracing.Source.StartActivity("ProcessJsonStream");
+        
+        byte[]? inputBytes = null;
+        try
+        {
+            FintechGuard.Pii.Diagnostics.PiiMetrics.PayloadsProcessed.Add(1);
+            
+            // For utmost performance and flexibility across arbitrarily nested structures:
+            using var memoryStream = new MemoryStream();
+            if (input.CanSeek) input.Position = 0;
+            input.CopyTo(memoryStream);
+            inputBytes = memoryStream.ToArray();
+            
+            ProcessJsonBytes(inputBytes, output, isMasking, scope, detections);
+        }
+        catch (JsonException ex)
+        {
+            HandleProcessingError(inputBytes, output, ex, "Malformed JSON encountered during processing.");
+        }
+        catch (RegexMatchTimeoutException ex)
+        {
+            HandleProcessingError(inputBytes, output, ex, "Catastrophic regex backtracking timeout detected.");
+        }
+    }
+
+    private void HandleProcessingError(byte[]? inputBytes, Stream output, Exception ex, string message)
+    {
+        FintechGuard.Pii.Diagnostics.PiiMetrics.ProcessingErrors.Add(1, new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
+
+        if (_options.ErrorBehavior == PiiErrorBehavior.Throw)
+            throw new PiiProcessingException(message, ex);
+
+        if (_options.ErrorBehavior == PiiErrorBehavior.PassThrough)
+        {
+            if (output.CanSeek)
+            {
+                output.SetLength(0);
+                output.Position = 0;
+            }
+            
+            if (inputBytes != null)
+            {
+                output.Write(inputBytes, 0, inputBytes.Length);
+            }
+        }
+        else if (_options.ErrorBehavior == PiiErrorBehavior.Redact)
+        {
+            if (output.CanSeek)
+            {
+                output.SetLength(0);
+                output.Position = 0;
+            }
+            // Safest fallback: Redact entire payload
+            byte[] redacted = Encoding.UTF8.GetBytes(@"{""error"":""[REDACTED_DUE_TO_PROCESSING_ERROR]""}");
+            output.Write(redacted, 0, redacted.Length);
+        }
+    }
+
+    private void ProcessJsonBytes(byte[] inputBytes, Stream output, bool isMasking, JsonMaskingScope? scope, List<PiiDetection>? detections)
+    {
         var readerOptions = new JsonReaderOptions
         {
             AllowTrailingCommas = true,
@@ -268,11 +357,6 @@ public sealed partial class PiiEngine : IPiiEngine
         {
             Indented = false
         };
-
-        // For utmost performance and flexibility across arbitrarily nested structures:
-        using var memoryStream = new MemoryStream();
-        input.CopyTo(memoryStream);
-        byte[] inputBytes = memoryStream.ToArray();
 
         var reader = new Utf8JsonReader(inputBytes, readerOptions);
         using var writer = new Utf8JsonWriter(output, writerOptions);
@@ -318,7 +402,41 @@ public sealed partial class PiiEngine : IPiiEngine
                         }
                         else
                         {
-                            string masked = MaskValue(val, hintType: null, scope: scope);
+                            var matches = Scan(val, currentProperty);
+                            
+                            if (scope?.IncludeTypes != null)
+                            {
+                                matches = matches.Where(m => scope.IncludeTypes.Contains(m.Type)).ToList();
+                            }
+                            if (scope?.ExcludeTypes != null)
+                            {
+                                matches = matches.Where(m => !scope.ExcludeTypes.Contains(m.Type)).ToList();
+                            }
+
+                            if (currentProperty != null)
+                            {
+                                matches = matches.Select(m => m with 
+                                { 
+                                    Confidence = Math.Clamp(m.Confidence + _options.KeyHints.GetBoost(currentProperty, m.Type), 0.0, 1.0) 
+                                }).ToList();
+                            }
+                            matches = matches.Where(m => m.Confidence >= _options.MinConfidence).ToList();
+
+                            if (matches.Count > 0 && detections != null)
+                            {
+                                foreach (var match in FilterOverlapping(matches))
+                                {
+                                    FintechGuard.Pii.Diagnostics.PiiMetrics.ElementsMasked.Add(1, new KeyValuePair<string, object?>("pii_type", match.Type.ToString()));
+                                    detections.Add(new PiiDetection
+                                    {
+                                        Type = match.Type,
+                                        Confidence = match.Confidence,
+                                        RecognizerName = match.TypeName,
+                                        JsonPath = currentProperty
+                                    });
+                                }
+                            }
+                            string masked = ApplyMatches(val, FilterOverlapping(matches), scope);
                             writer.WriteStringValue(masked);
                         }
                     }
@@ -343,10 +461,43 @@ public sealed partial class PiiEngine : IPiiEngine
                         if (!isExcluded)
                         {
                             string numStr = numVal.ToString();
-                            var matches = Scan(numStr);
+                            var matches = Scan(numStr, currentProperty);
+                            
+                            if (scope?.IncludeTypes != null)
+                            {
+                                matches = matches.Where(m => scope.IncludeTypes.Contains(m.Type)).ToList();
+                            }
+                            if (scope?.ExcludeTypes != null)
+                            {
+                                matches = matches.Where(m => !scope.ExcludeTypes.Contains(m.Type)).ToList();
+                            }
+
+                            if (currentProperty != null)
+                            {
+                                matches = matches.Select(m => m with 
+                                { 
+                                    Confidence = Math.Clamp(m.Confidence + _options.KeyHints.GetBoost(currentProperty, m.Type), 0.0, 1.0) 
+                                }).ToList();
+                            }
+                            matches = matches.Where(m => m.Confidence >= _options.MinConfidence).ToList();
+                            
                             if (matches.Count > 0)
                             {
-                                string masked = MaskValue(numStr, hintType: null, scope: scope);
+                                if (detections != null)
+                                {
+                                    foreach (var match in FilterOverlapping(matches))
+                                    {
+                                        FintechGuard.Pii.Diagnostics.PiiMetrics.ElementsMasked.Add(1, new KeyValuePair<string, object?>("pii_type", match.Type.ToString()));
+                                        detections.Add(new PiiDetection
+                                        {
+                                            Type = match.Type,
+                                            Confidence = match.Confidence,
+                                            RecognizerName = match.TypeName,
+                                            JsonPath = currentProperty
+                                        });
+                                    }
+                                }
+                                string masked = ApplyMatches(numStr, FilterOverlapping(matches), scope);
                                 writer.WriteStringValue(masked);
                                 break;
                             }

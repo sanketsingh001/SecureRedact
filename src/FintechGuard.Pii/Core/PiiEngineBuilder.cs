@@ -85,9 +85,10 @@ public sealed class PiiEngineBuilder
         string pattern,
         PiiType piiType = PiiType.Custom,
         string? customTypeName = null,
-        Func<string, bool>? validator = null)
+        Func<string, bool>? validator = null,
+        double confidence = 0.95)
     {
-        _options.Recognizers.Add(new CustomPatternRecognizer(name, pattern, piiType, customTypeName, validator));
+        _options.Recognizers.Add(new CustomPatternRecognizer(name, pattern, piiType, customTypeName, validator, System.Text.RegularExpressions.RegexOptions.Compiled, confidence));
         return this;
     }
 
@@ -107,6 +108,33 @@ public sealed class PiiEngineBuilder
     public PiiEngineBuilder SetDefaultStrategy(MaskingStrategy strategy)
     {
         _options.DefaultStrategy = strategy;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures how the engine behaves when an unrecoverable error occurs (default is Throw).
+    /// </summary>
+    public PiiEngineBuilder WithErrorBehavior(PiiErrorBehavior behavior)
+    {
+        _options.ErrorBehavior = behavior;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the minimum confidence score required to apply a mask.
+    /// </summary>
+    public PiiEngineBuilder SetMinConfidence(double minConfidence)
+    {
+        _options.MinConfidence = Math.Clamp(minConfidence, 0.0, 1.0);
+        return this;
+    }
+
+    /// <summary>
+    /// Configures custom key hints to boost or demote confidence scores based on JSON property names.
+    /// </summary>
+    public PiiEngineBuilder WithKeyHints(Action<FintechGuard.Pii.Context.KeyHintRegistry> configure)
+    {
+        configure?.Invoke(_options.KeyHints);
         return this;
     }
 

@@ -8,7 +8,7 @@ public interface IPiiEngine
     /// <summary>
     /// Scans a text fragment and returns detected PII matches.
     /// </summary>
-    IReadOnlyList<PiiMatch> Scan(string text);
+    IReadOnlyList<PiiMatch> Scan(string text, string? propertyName = null);
 
     /// <summary>
     /// Masks a single scalar value. If hintType is not provided, the value is scanned dynamically across all registered recognizers.
@@ -40,6 +40,12 @@ public interface IPiiEngine
     /// Scans a JSON string with fine-grained developer control configured via an inline lambda.
     /// </summary>
     string MaskJson(string json, Action<JsonMaskingScope> configureScope);
+
+    /// <summary>
+    /// Evaluates a JSON string and returns a detailed audit result containing the safe payload
+    /// along with telemetry of exactly what PII fields were detected and masked.
+    /// </summary>
+    MaskingResult MaskJsonWithAudit(string json, JsonMaskingScope? scope = null);
 
     /// <summary>
     /// Traverses a masked JSON string and restores all reversible tokens to their original plaintext values.

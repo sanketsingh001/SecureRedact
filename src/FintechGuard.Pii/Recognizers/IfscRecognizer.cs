@@ -12,7 +12,7 @@ public sealed partial class IfscRecognizer : IPiiRecognizer
     public string Name => "Indian_IFSC";
     public PiiType PiiType => PiiType.Ifsc;
 
-    [GeneratedRegex(@"\b[A-Z]{4}0[A-Z0-9]{6}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[A-Z]{4}0[A-Z0-9]{6}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex IfscPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

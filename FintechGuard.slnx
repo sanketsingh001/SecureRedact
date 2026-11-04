@@ -6,12 +6,14 @@
     <Project Path="src/FintechGuard.Pii.AspNetCore/FintechGuard.Pii.AspNetCore.csproj" />
     <Project Path="src/FintechGuard.Pii.AzureDataExplorer/FintechGuard.Pii.AzureDataExplorer.csproj" />
     <Project Path="src/FintechGuard.Pii.LlmProxy/FintechGuard.Pii.LlmProxy.csproj" />
+    <Project Path="src/FintechGuard.Pii.Ner/FintechGuard.Pii.Ner.csproj" />
     <Project Path="src/FintechGuard.Pii/FintechGuard.Pii.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/FintechGuard.WebApi/FintechGuard.WebApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/FintechGuard.Pii.LoadTest/FintechGuard.Pii.LoadTest.csproj" />
     <Project Path="tests/FintechGuard.Pii.Tests/FintechGuard.Pii.Tests.csproj" />
   </Folder>
 </Solution>

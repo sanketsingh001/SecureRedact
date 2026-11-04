@@ -5,7 +5,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/SecureRedact.svg)](https://www.nuget.org/packages/SecureRedact)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build & Test](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)](#)
+[![Build & Test](https://img.shields.io/badge/tests-55%20passed-brightgreen.svg)](#)
 [![Target](https://img.shields.io/badge/.NET-8.0%20|%2010.0-blue.svg)](#)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM-orange.svg)](#)
 
@@ -238,9 +238,13 @@ var detections = proxy.AuditPrompt("Customer card is 4532-0151-1283-0366, UPI is
 
 ---
 
-## 9. Azure Data Explorer / Kusto Integration (`FintechGuard.Pii.AzureDataExplorer`)
+## 9. Azure Data Explorer / Kusto Integration (`SecureRedact.AzureDataExplorer`)
 
 A dedicated NuGet package for teams using the official `Kusto.Ingest` SDK. Easily wrap your client in 1 line of code to transparently mask PII in all JSON/CSV streams and files before they are forwarded to Azure Data Explorer (ADX) — with zero changes to your KQL queries or table schemas!
+
+```bash
+dotnet add package SecureRedact.AzureDataExplorer
+```
 
 ### One-Line Integration
 ```csharp
@@ -266,7 +270,72 @@ IKustoIngestClient secureClient = rawClient.WithSecureRedact(engine);
 
 ---
 
-## 9. Interactive Web API Sample (`samples/FintechGuard.WebApi`)
+## 10. ONNX BERT-NER Machine Learning Plugin (`SecureRedact.Ner`)
+
+For unstructured, free-form text fields (e.g. `chat_transcript`, `agent_notes`, `support_ticket`) where Regex alone is not enough, `SecureRedact.Ner` attaches hardware-accelerated ONNX token classification models directly into the pipeline.
+
+```bash
+dotnet add package SecureRedact.Ner
+```
+
+### Usage:
+```csharp
+using FintechGuard.Pii.Ner;
+
+var engine = PiiEngineBuilder.Create()
+    .WithMasterKey("your-32-byte-secret-master-key!")
+    .AddDefaultRecognizers()
+    // Selectively target fields that contain free-form multilingual text:
+    .AddOnnxNerRecognizer(
+        modelPath: "path/to/bert-ner.onnx",
+        targetKeys: new[] { "chat_transcript", "notes", "feedback" },
+        confidence: 0.85
+    )
+    .Build();
+```
+
+- **Selective Routing**: Only executes heavy tensor calculations on specified keys to maintain maximum pipeline speed.
+- **Zero-Copy Marshaling**: Evaluates `DenseTensor<long>` directly on CPU via `Microsoft.ML.OnnxRuntime`.
+- **Supports Multilingual NER**: Detects names and personal entities across English, Hindi, and other regional scripts.
+
+---
+
+## 11. Resilient Error Handling, Safety Net & OpenTelemetry
+
+### Fail-Safe Fallback Modes (`PiiErrorBehavior`)
+Fintech systems cannot crash when bad JSON enters the queue. SecureRedact offers configurable error strategies:
+```csharp
+var engine = PiiEngineBuilder.Create()
+    .WithMasterKey("...")
+    .AddDefaultRecognizers()
+    .SetErrorBehavior(PiiErrorBehavior.LogAndMaskFallback) // Never throw; redact entire payload on fatal error
+    .Build();
+```
+
+### Rich Masking Audit & Detections (`MaskingResult`)
+Inspect all detected entities, their JSON paths, recognizer names, and execution timings:
+```csharp
+MaskingResult result = engine.MaskJsonWithAudit(jsonString);
+
+Console.WriteLine($"PII Found: {result.HasPii}");
+Console.WriteLine($"Masked Fields: {result.PiiFieldCount}");
+Console.WriteLine($"Duration: {result.DurationMs} ms");
+
+foreach (var detection in result.Detections)
+{
+    Console.WriteLine($"Detected {detection.Type} at {detection.JsonPath} (Confidence: {detection.Confidence:P})");
+}
+```
+
+### Native OpenTelemetry Metrics (`PiiMetrics`)
+SecureRedact automatically instruments metrics under the `FintechGuard.PiiEngine` meter:
+- `pii_records_processed_total`: Count of processed JSON payloads.
+- `pii_entities_detected_total`: Counter tagged with `pii_type`.
+- `pii_processing_time_ms`: Processing latency histogram.
+
+---
+
+## 12. Interactive Web API Sample (`samples/FintechGuard.WebApi`)
 
 An out-of-the-box ASP.NET Core Web API demonstrating real-time masking, unmasking, and edge cases:
 
@@ -279,4 +348,29 @@ Run the sample:
 ```bash
 dotnet run --project samples/FintechGuard.WebApi
 ```
+
+---
+
+## 13. High-Throughput Load Benchmark (15,000+ TPS)
+
+A high-performance benchmark suite is provided in `tests/FintechGuard.Pii.LoadTest`:
+```bash
+dotnet run -c Release --project tests/FintechGuard.Pii.LoadTest
+```
+
+Results on standard modern CPU:
+- **Scenario A (Structured JSON, 1 ML Field)**: **18,500+ TPS** (~12.6 MB/s, 0.05ms avg latency)
+- **Scenario B (Unstructured 'Bad Data', 5 ML Fields)**: **12,900+ TPS** (~4.4 MB/s, 0.07ms avg latency)
+
+---
+
+## 14. NuGet Packages Overview
+
+| Package | Version | Description |
+| :--- | :--- | :--- |
+| **`SecureRedact`** | `1.2.0` | Core PII masking, reversible AES-256-GCM tokenization, streaming JSON engine, and statutory recognizers. |
+| **`SecureRedact.AspNetCore`** | `1.2.0` | Transparent ASP.NET Core middleware for HTTP requests and JSON responses. |
+| **`SecureRedact.LlmProxy`** | `1.2.0` | LLM privacy client for OpenAI, Claude, and Gemini with reversible token unmasking. |
+| **`SecureRedact.AzureDataExplorer`** | `1.2.0` | Kusto Ingest wrapper for Azure Data Explorer stream and file masking. |
+| **`SecureRedact.Ner`** | `1.2.0` | ONNX BERT-NER named entity recognition plugin for unstructured text. |
 

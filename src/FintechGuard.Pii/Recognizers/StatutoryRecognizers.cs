@@ -12,7 +12,7 @@ public sealed partial class DrivingLicenseRecognizer : IPiiRecognizer
     public string Name => "Indian_DrivingLicense";
     public PiiType PiiType => PiiType.DrivingLicense;
 
-    [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2}[ -]?(?:19|20)[0-9]{2}[0-9]{7}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2}[ -]?(?:19|20)[0-9]{2}[0-9]{7}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex DlPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)
@@ -45,7 +45,7 @@ public sealed partial class VoterIdRecognizer : IPiiRecognizer
     public string Name => "Indian_VoterId";
     public PiiType PiiType => PiiType.VoterId;
 
-    [GeneratedRegex(@"\b[A-Z]{3}[0-9]{7}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[A-Z]{3}[0-9]{7}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex VoterIdPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)
@@ -78,7 +78,7 @@ public sealed partial class PassportRecognizer : IPiiRecognizer
     public string Name => "Indian_Passport";
     public PiiType PiiType => PiiType.IndianPassport;
 
-    [GeneratedRegex(@"\b[A-PR-WYa-pr-wy][1-9][0-9]{6}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[A-PR-WYa-pr-wy][1-9][0-9]{6}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex PassportPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

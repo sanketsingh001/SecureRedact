@@ -11,7 +11,7 @@ public sealed partial class IndianMobileRecognizer : IPiiRecognizer
     public string Name => "Indian_Mobile";
     public PiiType PiiType => PiiType.IndianMobile;
 
-    [GeneratedRegex(@"(?<!\d)(?:\+91[- ]?|0)?[6-9]\d{9}(?!\d)", RegexOptions.Compiled)]
+    [GeneratedRegex(@"(?<!\d)(?:\+91[- ]?|0)?[6-9]\d{9}(?!\d)", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex MobilePattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

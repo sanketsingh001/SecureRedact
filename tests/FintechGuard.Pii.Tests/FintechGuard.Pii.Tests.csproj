@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\FintechGuard.Pii\FintechGuard.Pii.csproj" />
     <ProjectReference Include="..\..\src\FintechGuard.Pii.AspNetCore\FintechGuard.Pii.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\FintechGuard.Pii.LlmProxy\FintechGuard.Pii.LlmProxy.csproj" />
+    <ProjectReference Include="..\..\src\FintechGuard.Pii.Ner\FintechGuard.Pii.Ner.csproj" />
   </ItemGroup>
 
 </Project>

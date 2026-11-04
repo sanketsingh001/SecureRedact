@@ -12,7 +12,7 @@ public sealed partial class PanRecognizer : IPiiRecognizer
     public string Name => "Indian_PAN";
     public PiiType PiiType => PiiType.Pan;
 
-    [GeneratedRegex(@"\b[A-Z]{3}[PCHFATBLJG][A-Z]\d{4}[A-Z]\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[A-Z]{3}[PCHFATBLJG][A-Z]\d{4}[A-Z]\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex PanPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

@@ -14,7 +14,7 @@ public sealed partial class AadhaarRecognizer : IPiiRecognizer
     public PiiType PiiType => PiiType.Aadhaar;
 
     // Aadhaar does not start with 0 or 1
-    [GeneratedRegex(@"\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex AadhaarPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

@@ -12,7 +12,7 @@ public sealed partial class UpiRecognizer : IPiiRecognizer
     public string Name => "Indian_UPI";
     public PiiType PiiType => PiiType.UpiId;
 
-    [GeneratedRegex(@"\b[a-zA-Z0-9.\-_]{2,64}@(okhdfcbank|okaxis|oksbi|okicici|paytm|ybl|ibl|axl|upi|icici|hdfcbank|sbi|kotak|barodampay|waaxis|idfcbank)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[a-zA-Z0-9.\-_]{2,64}@(okhdfcbank|okaxis|oksbi|okicici|paytm|ybl|ibl|axl|upi|icici|hdfcbank|sbi|kotak|barodampay|waaxis|idfcbank)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex UpiPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)

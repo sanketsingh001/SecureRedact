@@ -13,7 +13,7 @@ public sealed partial class IbanRecognizer : IPiiRecognizer
     public string Name => "Global_IBAN";
     public PiiType PiiType => PiiType.Iban;
 
-    [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2}[ -]?[A-Z0-9]{4}[ -]?[A-Z0-9]{4}[ -]?[A-Z0-9]{1,26}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2}[ -]?[A-Z0-9]{4}[ -]?[A-Z0-9]{4}[ -]?[A-Z0-9]{1,26}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex IbanPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)
@@ -48,7 +48,7 @@ public sealed partial class SsnRecognizer : IPiiRecognizer
     public string Name => "US_SSN";
     public PiiType PiiType => PiiType.UsSsn;
 
-    [GeneratedRegex(@"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex SsnPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)
@@ -83,7 +83,7 @@ public sealed partial class EmailRecognizer : IPiiRecognizer
     public string Name => "Email";
     public PiiType PiiType => PiiType.Email;
 
-    [GeneratedRegex(@"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex EmailPattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)
@@ -115,7 +115,7 @@ public sealed partial class IpAddressRecognizer : IPiiRecognizer
     public string Name => "IpAddress";
     public PiiType PiiType => PiiType.IpAddress;
 
-    [GeneratedRegex(@"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
     private static partial Regex Ipv4Pattern();
 
     public IEnumerable<PiiMatch> Recognize(string text)
