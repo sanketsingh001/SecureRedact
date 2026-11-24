@@ -14,21 +14,31 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SecureRedact.Ner</PackageId>
+    <Title>SecureRedact.Ner — CPU-Only Multilingual ONNX &amp; Contextual NER PII Detection</Title>
     <Version>1.3.0</Version>
     <Authors>Sanket Singh</Authors>
     <Company>Sanket Singh</Company>
-    <Description>CPU-only tiered NER plugin for SecureRedact: sub-millisecond Aho-Corasick contextual NER plus real tokenized ONNX token-classification with micro-batching for names, addresses, and organizations.</Description>
-    <PackageTags>pii;masking;ner;onnx;bert;token-classification;nlp;redaction;fintech;security</PackageTags>
+    <Copyright>Copyright (c) 2026 Sanket Singh</Copyright>
+    <Description>CPU-only Named Entity Recognition (NER) PII detection plugin for SecureRedact (.NET 8 &amp; 10). Detects and masks person names, street addresses, and organizations in English, Hinglish, and Hindi Devanagari using sub-millisecond Aho-Corasick contextual NER plus quantized ONNX DistilBERT/BERT transformers with pure-.NET model download, CPU usage limits, and zero GPU or Python dependency.</Description>
+    <PackageTags>pii;pii-redaction;ner;named-entity-recognition;onnx;onnxruntime;nlp;ai;machine-learning;bert;distilbert;multilingual;hindi;cpu;token-classification;data-masking;anonymization;privacy;gdpr;dpdp;fintech;security</PackageTags>
+    <PackageReleaseNotes>v1.3.0: CPU-only zero-copy UTF-8 JSON/NDJSON streaming, real Indian/Global statutory checksums (Luhn+IIN, Verhoeff, GSTIN Mod-36, IBAN Mod-97), AES-256-GCM key-ring rotation, HMAC-SHA256 hashing, server CPU usage caps (WithMaxCpuUsage), one-line factories, pure-.NET ONNX multilingual NER downloader, and verified .NET 8 and .NET 10 parity.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/sanketsingh001/SecureRedact</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <RepositoryBranch>main</RepositoryBranch>
     <PackageProjectUrl>https://github.com/sanketsingh001/SecureRedact</PackageProjectUrl>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="..\..\assets\icon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <InternalsVisibleTo Include="FintechGuard.Pii.Tests" />
   </ItemGroup>

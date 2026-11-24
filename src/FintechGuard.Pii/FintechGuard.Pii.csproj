@@ -5,21 +5,31 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SecureRedact</PackageId>
+    <Title>SecureRedact — .NET PII Redaction, Data Masking &amp; AES-256-GCM Tokenization</Title>
     <Version>1.3.0</Version>
     <Authors>Sanket Singh</Authors>
     <Company>Sanket Singh</Company>
-    <Description>High-throughput format-preserving PII masking and reversible AES-256-GCM tokenization engine for fintech JSON payloads. Validates statutory IDs (Aadhaar, PAN, GSTIN, Cards, UPI, SSN, IBAN, DL, Voter ID, Passport) on arbitrary-key nested JSON.</Description>
-    <PackageTags>pii;masking;redaction;fintech;gdpr;hipaa;aadhaar;credit-card;pan;gstin;upi;security;tokenization;format-preserving</PackageTags>
+    <Copyright>Copyright (c) 2026 Sanket Singh</Copyright>
+    <Description>High-performance, CPU-only .NET 8 &amp; 10 PII redaction, data masking, anonymization, and reversible AES-256-GCM tokenization library for nested JSON, NDJSON, and POCOs. Detects and masks Credit Cards (Luhn), PAN, Aadhaar (Verhoeff), GSTIN, UPI, IFSC, SSN, IBAN, Email, Phone, DOB, and IPv4/IPv6 for PCI-DSS, GDPR, HIPAA, and DPDP compliance with zero GPU and built-in CPU concurrency limits.</Description>
+    <PackageTags>pii;pii-redaction;data-masking;redaction;anonymization;pseudonymization;tokenization;format-preserving;aes-gcm;encryption;json;ndjson;compliance;gdpr;hipaa;pci-dss;dpdp;fintech;india;aadhaar;pan;gstin;upi;ifsc;credit-card;luhn;iban;ssn;security;privacy;dotnet</PackageTags>
+    <PackageReleaseNotes>v1.3.0: CPU-only zero-copy UTF-8 JSON/NDJSON streaming, real Indian/Global statutory checksums (Luhn+IIN, Verhoeff, GSTIN Mod-36, IBAN Mod-97), AES-256-GCM key-ring rotation, HMAC-SHA256 hashing, server CPU usage caps (WithMaxCpuUsage), one-line factories, pure-.NET ONNX multilingual NER downloader, and verified .NET 8 and .NET 10 parity.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/sanketsingh001/SecureRedact</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <RepositoryBranch>main</RepositoryBranch>
     <PackageProjectUrl>https://github.com/sanketsingh001/SecureRedact</PackageProjectUrl>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="..\..\assets\icon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <InternalsVisibleTo Include="FintechGuard.Pii.AspNetCore" />
     <InternalsVisibleTo Include="FintechGuard.Pii.Ner" />

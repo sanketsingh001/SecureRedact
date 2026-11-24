@@ -3,7 +3,9 @@
 > **Production-Grade, CPU-Only .NET 8 & 10 PII Masking, Format-Preserving AES-256-GCM Tokenization & Tiered NER Engine for Fintech Systems.**  
 > Built for arbitrary-key nested JSON/NDJSON payloads with explicit server CPU limits and zero GPU requirements.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![NuGet Version](https://img.shields.io/nuget/v/SecureRedact.svg)](https://www.nuget.org/packages/SecureRedact)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/SecureRedact.svg)](https://www.nuget.org/packages/SecureRedact)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/sanketsingh001/SecureRedact/blob/main/LICENSE)
 [![Target](https://img.shields.io/badge/.NET-8.0%20|%2010.0-blue.svg)](#)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM-orange.svg)](#)
 
@@ -25,6 +27,14 @@ dotnet add package SecureRedact
 dotnet add package SecureRedact.AspNetCore
 dotnet add package SecureRedact.Ner
 ```
+
+### Supported PII Types & Compliance Coverage (PCI-DSS, GDPR, HIPAA, India DPDP / RBI)
+
+| Category | Supported Identifiers & Validation | Package |
+| :--- | :--- | :--- |
+| **Indian Statutory & Banking** | **PAN**, **Aadhaar** (Verhoeff checksum), **GSTIN** (Modulo-36 + state code), **UPI VPA** (verified NPCI handles), **IFSC**, **Indian Mobile**, **Driving License**, **Voter ID**, **Indian Passport** | `SecureRedact` |
+| **Global Payments & Identity** | **Credit/Debit Cards** (Visa, Mastercard, Amex, RuPay IIN + Luhn), **IBAN** (ISO-13616 country length + Mod-97), **US SSN**, **Email**, **IPv4 / IPv6**, **International E.164 Phone**, **Date of Birth** (context-gated) | `SecureRedact` |
+| **Unstructured Multilingual NER** | **Person Names**, **Street Addresses**, **Organizations** across **English, Hinglish, and Hindi (Devanagari)** via Tier 1 rules or Tier 2 CPU ONNX transformers | `SecureRedact.Ner` |
 
 ---
 
