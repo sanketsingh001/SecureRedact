@@ -28,3 +28,4 @@ jobs:
 
     - name: Test
       run: dotnet test FintechGuard.slnx --configuration Release --no-build --verbosity normal
+

@@ -11,13 +11,18 @@ public static class SsnValidator
 {
     public static bool Validate(ReadOnlySpan<char> input)
     {
-        Span<char> digits = stackalloc char[input.Length];
+        if (input.Length < 9 || input.Length > 15)
+            return false;
+
+        Span<char> digits = stackalloc char[9];
         int count = 0;
 
         foreach (char c in input)
         {
             if (char.IsDigit(c))
             {
+                if (count >= 9)
+                    return false;
                 digits[count++] = c;
             }
             else if (c != '-' && c != ' ')

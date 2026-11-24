@@ -25,6 +25,11 @@ public enum PiiType
     VoterId = 108,
     IndianPassport = 109,
 
+    // Unstructured / NER Entities
+    PersonName = 201,
+    Address = 202,
+    Organization = 203,
+
     // Extensibility
     Custom = 999
 }
@@ -51,7 +56,7 @@ public enum MaskingStrategy
     ReversibleCryptoToken = 3,
 
     /// <summary>
-    /// Cryptographic one-way HMAC or SHA256 hash.
+    /// Cryptographic one-way keyed HMAC-SHA256 or SHA-256 hash.
     /// </summary>
     Hash = 4
 }

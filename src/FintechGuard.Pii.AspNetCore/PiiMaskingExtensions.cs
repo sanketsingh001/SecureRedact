@@ -1,5 +1,6 @@
 using FintechGuard.Pii.Core;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FintechGuard.Pii.AspNetCore;
@@ -10,48 +11,47 @@ namespace FintechGuard.Pii.AspNetCore;
 public static class PiiMaskingExtensions
 {
     /// <summary>
+    /// Registers SecureRedact PII masking services with zero-config defaults (OneWayRedaction).
+    /// </summary>
+    public static IServiceCollection AddPiiMasking(this IServiceCollection services)
+        => services.AddPiiMasking(_ => { });
+
+    /// <summary>
+    /// Registers SecureRedact PII masking services bound from an <see cref="IConfiguration"/> section (e.g. <c>"SecureRedact"</c>),
+    /// with optional code overrides.
+    /// </summary>
+    public static IServiceCollection AddPiiMasking(
+        this IServiceCollection services,
+        IConfiguration configurationSection,
+        Action<PiiMaskingOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(configurationSection);
+
+        return services.AddPiiMasking(options =>
+        {
+            configurationSection.Bind(options);
+            configure?.Invoke(options);
+        });
+    }
+
+    /// <summary>
     /// Registers FintechGuard.Pii services in the DI container.
-    /// Call this in your Program.cs / Startup.cs ConfigureServices.
     /// </summary>
     public static IServiceCollection AddPiiMasking(this IServiceCollection services, Action<PiiMaskingOptions> configure)
     {
+        ArgumentNullException.ThrowIfNull(configure);
+
         var options = new PiiMaskingOptions();
         configure(options);
 
-        // Build the PiiEngine based on options
-        var builder = PiiEngineBuilder.Create();
-
-        if (options.MasterKeyBytes != null)
-            builder.WithMasterKey(options.MasterKeyBytes);
-        else if (!string.IsNullOrEmpty(options.MasterKey))
-            builder.WithMasterKey(options.MasterKey);
-
-        if (options.UseIndianFintechRecognizers)
-            builder.AddIndianFintechRecognizers();
-
-        if (options.UseGlobalFintechRecognizers)
-            builder.AddGlobalFintechRecognizers();
-
-        builder.SetDefaultStrategy(options.DefaultStrategy);
-
-        // Allow consumer to add custom recognizers and overrides
-        options.ConfigureEngine?.Invoke(builder);
-
-        var engine = builder.Build();
-
         services.AddSingleton(options);
-        services.AddSingleton<IPiiEngine>(engine);
+        services.AddSingleton<IPiiEngine>(_ => BuildEngine(options));
 
         return services;
     }
 
     /// <summary>
     /// Adds the PII masking middleware to the ASP.NET Core pipeline.
-    /// This automatically masks PII in request and response JSON bodies.
-    ///
-    /// Usage:
-    ///   app.UsePiiMasking();
-    ///
     /// Requires AddPiiMasking() to be called in ConfigureServices first.
     /// </summary>
     public static IApplicationBuilder UsePiiMasking(this IApplicationBuilder app)
@@ -64,24 +64,31 @@ public static class PiiMaskingExtensions
 
     /// <summary>
     /// Adds PII masking middleware with inline configuration (no DI registration required).
-    ///
-    /// Usage:
-    ///   app.UsePiiMasking(options => {
-    ///       options.MasterKey = "your-key";
-    ///       options.ExcludePaths = ["/health", "/metrics"];
-    ///   });
     /// </summary>
     public static IApplicationBuilder UsePiiMasking(this IApplicationBuilder app, Action<PiiMaskingOptions> configure)
     {
         var options = new PiiMaskingOptions();
         configure(options);
 
-        var builder = PiiEngineBuilder.Create();
+        var engine = BuildEngine(options);
+        return app.UseMiddleware<PiiMaskingMiddleware>(engine, options);
+    }
 
-        if (options.MasterKeyBytes != null)
+    private static IPiiEngine BuildEngine(PiiMaskingOptions options)
+    {
+        var builder = PiiEngineBuilder.Create();
+        bool hasKey = false;
+
+        if (options.MasterKeyBytes != null && options.MasterKeyBytes.Length > 0)
+        {
             builder.WithMasterKey(options.MasterKeyBytes);
+            hasKey = true;
+        }
         else if (!string.IsNullOrEmpty(options.MasterKey))
+        {
             builder.WithMasterKey(options.MasterKey);
+            hasKey = true;
+        }
 
         if (options.UseIndianFintechRecognizers)
             builder.AddIndianFintechRecognizers();
@@ -89,11 +96,16 @@ public static class PiiMaskingExtensions
         if (options.UseGlobalFintechRecognizers)
             builder.AddGlobalFintechRecognizers();
 
-        builder.SetDefaultStrategy(options.DefaultStrategy);
+        MaskingStrategy effectiveStrategy = options.DefaultStrategy;
+        if (!hasKey && (effectiveStrategy == MaskingStrategy.FormatPreservingReversible ||
+                        effectiveStrategy == MaskingStrategy.ReversibleCryptoToken))
+        {
+            effectiveStrategy = MaskingStrategy.OneWayRedaction;
+        }
+
+        builder.SetDefaultStrategy(effectiveStrategy);
         options.ConfigureEngine?.Invoke(builder);
 
-        var engine = builder.Build();
-
-        return app.UseMiddleware<PiiMaskingMiddleware>(engine, options);
+        return builder.Build();
     }
 }

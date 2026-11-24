@@ -1,6 +1,5 @@
 using System.Text.Json;
 using FintechGuard.Pii.Core;
-using FluentAssertions;
 using Xunit;
 
 namespace FintechGuard.Pii.Tests;
@@ -39,13 +38,13 @@ public class DeveloperDatabaseControlTests
         });
 
         // 1. Card and Aadhaar MUST be masked
-        dbJson.Should().NotContain("4532-0151-1283-0366");
-        dbJson.Should().NotContain("2123 4567 8901");
-        dbJson.Should().Contain("4532-****-****-0366#fp[");
+        Assert.DoesNotContain("4532-0151-1283-0366", dbJson);
+        Assert.DoesNotContain("2123 4567 8901", dbJson);
+        Assert.Contains("4532-****-****-0366#fp[", dbJson);
 
         // 2. Email and PAN MUST stay in plaintext because developer chose not to mask them
-        dbJson.Should().Contain("\"tax_id\":\"ABCPE1234F\"");
-        dbJson.Should().Contain("\"contact_email\":\"customer@fintech.com\"");
+        Assert.Contains("\"tax_id\":\"ABCPE1234F\"", dbJson);
+        Assert.Contains("\"contact_email\":\"customer@fintech.com\"", dbJson);
     }
 
     [Fact]
@@ -66,10 +65,10 @@ public class DeveloperDatabaseControlTests
         });
 
         // "real_card" is masked
-        dbJson.Should().Contain("\"real_card\":\"4532-****-****-0366#fp[");
+        Assert.Contains("\"real_card\":\"4532-****-****-0366#fp[", dbJson);
 
         // "public_display_card" is preserved intact
-        dbJson.Should().Contain("\"public_display_card\":\"4532-0151-1283-0366\"");
+        Assert.Contains("\"public_display_card\":\"4532-0151-1283-0366\"", dbJson);
     }
 
     [Fact]
@@ -82,15 +81,15 @@ public class DeveloperDatabaseControlTests
         {
             scope.StrategyOverride = MaskingStrategy.FormatPreservingReversible;
         });
-        primaryDbJson.Should().Contain("#fp[");
+        Assert.Contains("#fp[", primaryDbJson);
 
         // 2. Sending to Audit Log DB: developer uses One-Way (permanent redaction, never unmasked)
         string auditDbJson = _engine.MaskJson(incomingJson, scope =>
         {
             scope.StrategyOverride = MaskingStrategy.OneWayRedaction;
         });
-        auditDbJson.Should().NotContain("#fp[");
-        auditDbJson.Should().Be("""{"card":"4532-****-****-0366"}""");
+        Assert.DoesNotContain("#fp[", auditDbJson);
+        Assert.Equal("""{"card":"4532-****-****-0366"}""", auditDbJson);
     }
 
     [Fact]
@@ -113,15 +112,15 @@ public class DeveloperDatabaseControlTests
         string jsonToPersistInDb = _engine.MaskJson(rawWebhookJson);
 
         // Verify: database string contains NO raw plaintext card or PAN
-        jsonToPersistInDb.Should().NotContain("4532-0151-1283-0366");
-        jsonToPersistInDb.Should().NotContain("ABCPE1234F");
+        Assert.DoesNotContain("4532-0151-1283-0366", jsonToPersistInDb);
+        Assert.DoesNotContain("ABCPE1234F", jsonToPersistInDb);
 
         // STEP 3: Later, an authorized settlement worker reads from DB and explicitly unmasks:
         string unmaskedForSettlement = _engine.UnmaskJson(jsonToPersistInDb);
 
         // Verify: exact original payload is restored
-        unmaskedForSettlement.Should().Contain("4532-0151-1283-0366");
-        unmaskedForSettlement.Should().Contain("ABCPE1234F");
-        unmaskedForSettlement.Should().Contain("merchant@okhdfcbank");
+        Assert.Contains("4532-0151-1283-0366", unmaskedForSettlement);
+        Assert.Contains("ABCPE1234F", unmaskedForSettlement);
+        Assert.Contains("merchant@okhdfcbank", unmaskedForSettlement);
     }
 }

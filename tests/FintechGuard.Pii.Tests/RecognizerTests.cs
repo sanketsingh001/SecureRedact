@@ -1,6 +1,5 @@
 using FintechGuard.Pii.Core;
 using FintechGuard.Pii.Recognizers;
-using FluentAssertions;
 using Xunit;
 
 namespace FintechGuard.Pii.Tests;
@@ -16,9 +15,9 @@ public class RecognizerTests
 
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().HaveCount(1);
-        matches[0].Type.Should().Be(PiiType.Aadhaar);
-        matches[0].RawValue.Should().Be("2123 4567 8901");
+        var match = Assert.Single(matches);
+        Assert.Equal(PiiType.Aadhaar, match.Type);
+        Assert.Equal("2123 4567 8901", match.RawValue);
     }
 
     [Fact]
@@ -30,7 +29,7 @@ public class RecognizerTests
 
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().BeEmpty();
+        Assert.Empty(matches);
     }
 
     [Fact]
@@ -41,22 +40,22 @@ public class RecognizerTests
 
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().HaveCount(1);
-        matches[0].Type.Should().Be(PiiType.Pan);
-        matches[0].RawValue.Should().Be("ABCPE1234F");
+        var match = Assert.Single(matches);
+        Assert.Equal(PiiType.Pan, match.Type);
+        Assert.Equal("ABCPE1234F", match.RawValue);
     }
 
     [Fact]
     public void GstinRecognizer_DetectsValidGstin()
     {
         var recognizer = new GstinRecognizer();
-        string text = "Invoice B2B GSTIN: 27ABCPE1234F1Z5 confirmed";
+        string text = "Invoice B2B GSTIN: 27ABCPE1234F1ZB confirmed";
 
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().HaveCount(1);
-        matches[0].Type.Should().Be(PiiType.Gstin);
-        matches[0].RawValue.Should().Be("27ABCPE1234F1Z5");
+        var match = Assert.Single(matches);
+        Assert.Equal(PiiType.Gstin, match.Type);
+        Assert.Equal("27ABCPE1234F1ZB", match.RawValue);
     }
 
     [Fact]
@@ -67,9 +66,9 @@ public class RecognizerTests
 
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().HaveCount(1);
-        matches[0].Type.Should().Be(PiiType.Ifsc);
-        matches[0].RawValue.Should().Be("HDFC0000240");
+        var match = Assert.Single(matches);
+        Assert.Equal(PiiType.Ifsc, match.Type);
+        Assert.Equal("HDFC0000240", match.RawValue);
     }
 
     [Fact]
@@ -80,9 +79,9 @@ public class RecognizerTests
 
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().HaveCount(1);
-        matches[0].Type.Should().Be(PiiType.UpiId);
-        matches[0].RawValue.Should().Be("rohit.sharma@okhdfcbank");
+        var match = Assert.Single(matches);
+        Assert.Equal(PiiType.UpiId, match.Type);
+        Assert.Equal("rohit.sharma@okhdfcbank", match.RawValue);
     }
 
     [Fact]
@@ -93,9 +92,9 @@ public class RecognizerTests
 
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().HaveCount(1);
-        matches[0].Type.Should().Be(PiiType.CreditCard);
-        matches[0].RawValue.Should().Be("4532-0151-1283-0366");
+        var match = Assert.Single(matches);
+        Assert.Equal(PiiType.CreditCard, match.Type);
+        Assert.Equal("4532-0151-1283-0366", match.RawValue);
     }
 
     [Fact]
@@ -112,8 +111,8 @@ public class RecognizerTests
         string text = "Found LOAN-12345699 and LOAN-12345600";
         var matches = recognizer.Recognize(text).ToList();
 
-        matches.Should().HaveCount(1);
-        matches[0].RawValue.Should().Be("LOAN-12345699");
-        matches[0].TypeName.Should().Be("LoanId");
+        var match = Assert.Single(matches);
+        Assert.Equal("LOAN-12345699", match.RawValue);
+        Assert.Equal("LoanId", match.TypeName);
     }
 }

@@ -13,7 +13,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SecureRedact.AspNetCore</PackageId>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Authors>Sanket Singh</Authors>
     <Company>Sanket Singh</Company>
     <Description>ASP.NET Core middleware for SecureRedact. Automatically intercepts and masks PII in incoming HTTP request bodies and outgoing JSON responses.</Description>

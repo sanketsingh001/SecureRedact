@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using FintechGuard.Pii.Crypto;
 using FintechGuard.Pii.Recognizers;
 
@@ -13,7 +15,7 @@ public sealed class PiiEngineBuilder
     public static PiiEngineBuilder Create() => new();
 
     /// <summary>
-    /// Configures 256-bit AES-GCM authenticated encryption using a passphrase.
+    /// Configures 256-bit AES-GCM authenticated encryption using a passphrase (derived with PBKDF2-HMAC-SHA256).
     /// </summary>
     public PiiEngineBuilder WithMasterKey(string passphrase)
     {
@@ -27,6 +29,37 @@ public sealed class PiiEngineBuilder
     public PiiEngineBuilder WithMasterKey(byte[] keyBytes)
     {
         _options.CryptoProvider = new AesGcmReversibleCrypto(keyBytes);
+        return this;
+    }
+
+    /// <summary>
+    /// Configures zero-downtime key rotation with an active key ID and historical decryption keys.
+    /// </summary>
+    public PiiEngineBuilder WithKeyRing(string activeKeyId, IReadOnlyDictionary<string, byte[]> keyRing)
+    {
+        _options.CryptoProvider = new AesGcmReversibleCrypto(activeKeyId, keyRing);
+        return this;
+    }
+
+    /// <summary>
+    /// Configures a dedicated secret key for deterministic HMAC-SHA256 one-way hashing (<see cref="MaskingStrategy.Hash"/>).
+    /// </summary>
+    public PiiEngineBuilder WithHashKey(string secret)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(secret);
+        _options.HashKey = SHA256.HashData(Encoding.UTF8.GetBytes(secret));
+        return this;
+    }
+
+    /// <summary>
+    /// Configures a raw byte secret key for deterministic HMAC-SHA256 one-way hashing (<see cref="MaskingStrategy.Hash"/>).
+    /// </summary>
+    public PiiEngineBuilder WithHashKey(byte[] keyBytes)
+    {
+        ArgumentNullException.ThrowIfNull(keyBytes);
+        if (keyBytes.Length == 0)
+            throw new ArgumentException("Hash key cannot be empty.", nameof(keyBytes));
+        _options.HashKey = (byte[])keyBytes.Clone();
         return this;
     }
 
@@ -57,7 +90,7 @@ public sealed class PiiEngineBuilder
     }
 
     /// <summary>
-    /// Adds global financial and contact identifiers (Credit/Debit Card via Luhn, IBAN via Mod-97, US SSN, Email, IP Address).
+    /// Adds global financial and contact identifiers (Credit/Debit Card via Luhn+IIN, IBAN via Mod-97, US SSN, Email, IPv4/IPv6, International Phone, Context-gated DOB).
     /// </summary>
     public PiiEngineBuilder AddGlobalFintechRecognizers()
     {
@@ -66,6 +99,8 @@ public sealed class PiiEngineBuilder
         _options.Recognizers.Add(new SsnRecognizer());
         _options.Recognizers.Add(new EmailRecognizer());
         _options.Recognizers.Add(new IpAddressRecognizer());
+        _options.Recognizers.Add(new GenericPhoneRecognizer());
+        _options.Recognizers.Add(new DateOfBirthRecognizer());
         return this;
     }
 
@@ -78,7 +113,7 @@ public sealed class PiiEngineBuilder
     }
 
     /// <summary>
-    /// Registers a custom user-defined regex recognizer and optional validator.
+    /// Registers a custom user-defined regex recognizer and optional validator (with ReDoS match timeout).
     /// </summary>
     public PiiEngineBuilder AddCustomRecognizer(
         string name,
@@ -88,7 +123,14 @@ public sealed class PiiEngineBuilder
         Func<string, bool>? validator = null,
         double confidence = 0.95)
     {
-        _options.Recognizers.Add(new CustomPatternRecognizer(name, pattern, piiType, customTypeName, validator, System.Text.RegularExpressions.RegexOptions.Compiled, confidence));
+        _options.Recognizers.Add(new CustomPatternRecognizer(
+            name,
+            pattern,
+            piiType,
+            customTypeName,
+            validator,
+            System.Text.RegularExpressions.RegexOptions.Compiled,
+            confidence));
         return this;
     }
 
@@ -153,6 +195,30 @@ public sealed class PiiEngineBuilder
     public PiiEngineBuilder SetMaskCharacter(char maskChar)
     {
         _options.MaskCharacter = maskChar;
+        return this;
+    }
+
+    /// <summary>
+    /// Caps concurrent engine operations to target at most approximately <paramref name="maxCpuPercent"/>% of server CPU cores.
+    /// </summary>
+    public PiiEngineBuilder WithMaxCpuUsage(int maxCpuPercent, TimeSpan? acquireTimeout = null)
+    {
+        _options.MaxConcurrentOperations = PiiEngineOptions.CalculateConcurrencyForCpuPercent(maxCpuPercent);
+        if (acquireTimeout.HasValue)
+            _options.ConcurrencyAcquireTimeout = acquireTimeout.Value;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets an explicit cap on concurrent operations executing inside the engine (0 = unlimited).
+    /// </summary>
+    public PiiEngineBuilder WithMaxConcurrency(int maxConcurrentOperations, TimeSpan? acquireTimeout = null)
+    {
+        if (maxConcurrentOperations < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxConcurrentOperations), "Max concurrency cannot be negative.");
+        _options.MaxConcurrentOperations = maxConcurrentOperations;
+        if (acquireTimeout.HasValue)
+            _options.ConcurrencyAcquireTimeout = acquireTimeout.Value;
         return this;
     }
 

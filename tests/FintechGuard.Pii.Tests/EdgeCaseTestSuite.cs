@@ -1,6 +1,5 @@
 using System.Text.Json;
 using FintechGuard.Pii.Core;
-using FluentAssertions;
 using Xunit;
 
 namespace FintechGuard.Pii.Tests;
@@ -46,7 +45,7 @@ public class EdgeCaseTestSuite
             "credit_card_visa": "4532-0151-1283-0366",
             "aadhaar_number": "2123 4567 8901",
             "pan_card_individual": "ABCPE1234F",
-            "gstin_maharashtra": "27ABCPE1234F1Z5",
+            "gstin_maharashtra": "27ABCPE1234F1ZB",
             "ifsc_bank_code": "HDFC0000240",
             "upi_vpa": "vikram.sharma@okhdfcbank",
             "global_iban_germany": "DE89370400440532013000",
@@ -97,43 +96,43 @@ public class EdgeCaseTestSuite
 
         // 1. Valid PII targets are properly masked with format-preserving reversible tokens
         var statutory = doc.RootElement.GetProperty("statutory_and_global_pii_valid");
-        statutory.GetProperty("credit_card_visa").GetString().Should().StartWith("4532-****-****-0366#fp[");
-        statutory.GetProperty("aadhaar_number").GetString().Should().StartWith("XXXX XXXX 8901#fp[");
-        statutory.GetProperty("pan_card_individual").GetString().Should().StartWith("AB****234F#fp[");
-        statutory.GetProperty("gstin_maharashtra").GetString().Should().StartWith("27*****1234**5#fp[");
-        statutory.GetProperty("ifsc_bank_code").GetString().Should().StartWith("HD*******40#fp[");
-        statutory.GetProperty("upi_vpa").GetString().Should().Contain("@okhdfcbank#fp[");
-        statutory.GetProperty("global_iban_germany").GetString().Should().StartWith("DE89**************3000#fp[");
-        statutory.GetProperty("us_ssn").GetString().Should().StartWith("***-**-6789#fp[");
-        statutory.GetProperty("email_address").GetString().Should().Contain("@secure-fintech.com#fp[");
-        statutory.GetProperty("ipv4_address").GetString().Should().Contain("#fp[");
-        statutory.GetProperty("indian_mobile").GetString().Should().Contain("#fp[");
+        Assert.StartsWith("4532-****-****-0366#fp[", statutory.GetProperty("credit_card_visa").GetString());
+        Assert.StartsWith("XXXX XXXX 8901#fp[", statutory.GetProperty("aadhaar_number").GetString());
+        Assert.StartsWith("AB****234F#fp[", statutory.GetProperty("pan_card_individual").GetString());
+        Assert.StartsWith("27*****1234***B#fp[", statutory.GetProperty("gstin_maharashtra").GetString());
+        Assert.StartsWith("HD*******40#fp[", statutory.GetProperty("ifsc_bank_code").GetString());
+        Assert.Contains("@okhdfcbank#fp[", statutory.GetProperty("upi_vpa").GetString());
+        Assert.StartsWith("DE89**************3000#fp[", statutory.GetProperty("global_iban_germany").GetString());
+        Assert.StartsWith("***-**-6789#fp[", statutory.GetProperty("us_ssn").GetString());
+        Assert.Contains("@secure-fintech.com#fp[", statutory.GetProperty("email_address").GetString());
+        Assert.Contains("#fp[", statutory.GetProperty("ipv4_address").GetString());
+        Assert.Contains("#fp[", statutory.GetProperty("indian_mobile").GetString());
 
         // 2. Traps must NOT be masked (algorithm check-digit eliminates them)
         var traps = doc.RootElement.GetProperty("false_positive_traps_must_NOT_be_masked");
-        traps.GetProperty("card_candidate_failing_luhn_mod10").GetString().Should().Be("4532-0151-1283-0367");
-        traps.GetProperty("aadhaar_candidate_failing_verhoeff").GetString().Should().Be("2123 4567 8902");
-        traps.GetProperty("pan_candidate_invalid_4th_char_entity").GetString().Should().Be("ABCXE1234F");
-        traps.GetProperty("gstin_candidate_invalid_state_code_99").GetString().Should().Be("99XYZPE1234F1Z5");
-        traps.GetProperty("ifsc_candidate_invalid_5th_char_not_zero").GetString().Should().Be("HDFC1000240");
-        traps.GetProperty("upi_candidate_unrecognized_psp_domain").GetString().Should().Be("vikram.sharma@notabank");
-        traps.GetProperty("ssn_candidate_illegal_area_000").GetString().Should().Be("000-45-6789");
-        traps.GetProperty("ssn_candidate_illegal_area_666").GetString().Should().Be("666-45-6789");
-        traps.GetProperty("ipv4_candidate_out_of_range_octets").GetString().Should().Be("999.888.777.666");
-        traps.GetProperty("mobile_candidate_invalid_starting_digit_1").GetString().Should().Be("+91 1234567890");
-        traps.GetProperty("safe_business_token_order").GetString().Should().Be("ORDER_REF_TXN_987654321");
-        traps.GetProperty("safe_currency_code").GetString().Should().Be("EUR_CURRENCY_CODE");
-        traps.GetProperty("safe_transaction_status").GetString().Should().Be("TXN_APPROVED_BY_GATEWAY");
+        Assert.Equal("4532-0151-1283-0367", traps.GetProperty("card_candidate_failing_luhn_mod10").GetString());
+        Assert.Equal("2123 4567 8902", traps.GetProperty("aadhaar_candidate_failing_verhoeff").GetString());
+        Assert.Equal("ABCXE1234F", traps.GetProperty("pan_candidate_invalid_4th_char_entity").GetString());
+        Assert.Equal("99XYZPE1234F1Z5", traps.GetProperty("gstin_candidate_invalid_state_code_99").GetString());
+        Assert.Equal("HDFC1000240", traps.GetProperty("ifsc_candidate_invalid_5th_char_not_zero").GetString());
+        Assert.Equal("vikram.sharma@notabank", traps.GetProperty("upi_candidate_unrecognized_psp_domain").GetString());
+        Assert.Equal("000-45-6789", traps.GetProperty("ssn_candidate_illegal_area_000").GetString());
+        Assert.Equal("666-45-6789", traps.GetProperty("ssn_candidate_illegal_area_666").GetString());
+        Assert.Equal("999.888.777.666", traps.GetProperty("ipv4_candidate_out_of_range_octets").GetString());
+        Assert.Equal("+91 1234567890", traps.GetProperty("mobile_candidate_invalid_starting_digit_1").GetString());
+        Assert.Equal("ORDER_REF_TXN_987654321", traps.GetProperty("safe_business_token_order").GetString());
+        Assert.Equal("EUR_CURRENCY_CODE", traps.GetProperty("safe_currency_code").GetString());
+        Assert.Equal("TXN_APPROVED_BY_GATEWAY", traps.GetProperty("safe_transaction_status").GetString());
 
         // 3. Primitives, nulls, booleans, and numbers must remain intact
         var mixed = doc.RootElement.GetProperty("mixed_datatypes_and_edge_values");
-        mixed.GetProperty("safe_numeric_id_not_a_card").GetInt64().Should().Be(9876543210123456);
-        mixed.GetProperty("transaction_amount_float").GetDecimal().Should().Be(14999.75m);
-        mixed.GetProperty("negative_integer").GetInt32().Should().Be(-42);
-        mixed.GetProperty("zero_integer").GetInt32().Should().Be(0);
-        mixed.GetProperty("boolean_true").GetBoolean().Should().BeTrue();
-        mixed.GetProperty("boolean_false").GetBoolean().Should().BeFalse();
-        mixed.GetProperty("explicit_null_field").ValueKind.Should().Be(JsonValueKind.Null);
+        Assert.Equal(9876543210123456, mixed.GetProperty("safe_numeric_id_not_a_card").GetInt64());
+        Assert.Equal(14999.75m, mixed.GetProperty("transaction_amount_float").GetDecimal());
+        Assert.Equal(-42, mixed.GetProperty("negative_integer").GetInt32());
+        Assert.Equal(0, mixed.GetProperty("zero_integer").GetInt32());
+        Assert.True(mixed.GetProperty("boolean_true").GetBoolean());
+        Assert.False(mixed.GetProperty("boolean_false").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, mixed.GetProperty("explicit_null_field").ValueKind);
 
         // 4. Deeply nested value masked correctly
         var deep = doc.RootElement
@@ -145,9 +144,9 @@ public class EdgeCaseTestSuite
             .GetProperty("level_5_subitem")
             .GetProperty("level_6_deep_target");
 
-        deep.GetProperty("valid_credit_card_luhn").GetString().Should().StartWith("4532-****-****-0366#fp[");
-        deep.GetProperty("valid_indian_pan").GetString().Should().StartWith("AB****234F#fp[");
-        deep.GetProperty("valid_upi_handle").GetString().Should().Contain("@okhdfcbank#fp[");
+        Assert.StartsWith("4532-****-****-0366#fp[", deep.GetProperty("valid_credit_card_luhn").GetString());
+        Assert.StartsWith("AB****234F#fp[", deep.GetProperty("valid_indian_pan").GetString());
+        Assert.Contains("@okhdfcbank#fp[", deep.GetProperty("valid_upi_handle").GetString());
 
         // 5. Unmasking must restore the exact original JSON identically
         string unmasked = _engine.UnmaskJson(masked);
@@ -156,6 +155,6 @@ public class EdgeCaseTestSuite
 
         string normOrig = JsonSerializer.Serialize(originalDoc.RootElement);
         string normRest = JsonSerializer.Serialize(restoredDoc.RootElement);
-        normRest.Should().Be(normOrig);
+        Assert.Equal(normOrig, normRest);
     }
 }

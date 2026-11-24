@@ -6,7 +6,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\dummy_ner.onnx" CopyToOutputDirectory="PreserveNewest" Link="dummy_ner.onnx" />
+    <None Include="..\FintechGuard.Pii.Tests\TestData\test_ner.onnx" CopyToOutputDirectory="PreserveNewest" Link="test_ner.onnx" />
+    <None Include="..\FintechGuard.Pii.Tests\TestData\test_vocab.txt" CopyToOutputDirectory="PreserveNewest" Link="test_vocab.txt" />
   </ItemGroup>
 
   <PropertyGroup>

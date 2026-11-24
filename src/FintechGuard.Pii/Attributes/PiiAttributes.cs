@@ -8,9 +8,33 @@ namespace FintechGuard.Pii.Attributes;
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
 public class PiiMaskAttribute : Attribute
 {
+    private MaskingStrategy _strategy = MaskingStrategy.FormatPreservingReversible;
+    private char _maskChar = '*';
+
     public PiiType PiiType { get; set; }
-    public MaskingStrategy Strategy { get; set; } = MaskingStrategy.FormatPreservingReversible;
-    public char MaskChar { get; set; } = '*';
+
+    public MaskingStrategy Strategy
+    {
+        get => _strategy;
+        set
+        {
+            _strategy = value;
+            HasExplicitStrategy = true;
+        }
+    }
+
+    public char MaskChar
+    {
+        get => _maskChar;
+        set
+        {
+            _maskChar = value;
+            HasExplicitMaskChar = true;
+        }
+    }
+
+    internal bool HasExplicitStrategy { get; private set; }
+    internal bool HasExplicitMaskChar { get; private set; }
 
     public PiiMaskAttribute(PiiType piiType)
     {
@@ -20,7 +44,8 @@ public class PiiMaskAttribute : Attribute
     public PiiMaskAttribute(PiiType piiType, MaskingStrategy strategy)
     {
         PiiType = piiType;
-        Strategy = strategy;
+        _strategy = strategy;
+        HasExplicitStrategy = true;
     }
 }
 
@@ -30,11 +55,25 @@ public class PiiMaskAttribute : Attribute
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
 public class CustomPiiRuleAttribute : Attribute
 {
+    private MaskingStrategy _strategy = MaskingStrategy.FormatPreservingReversible;
+
     public string Pattern { get; set; }
-    public MaskingStrategy Strategy { get; set; } = MaskingStrategy.FormatPreservingReversible;
+
+    public MaskingStrategy Strategy
+    {
+        get => _strategy;
+        set
+        {
+            _strategy = value;
+            HasExplicitStrategy = true;
+        }
+    }
+
     public char MaskChar { get; set; } = '*';
     public int KeepPrefix { get; set; } = 2;
     public int KeepSuffix { get; set; } = 2;
+
+    internal bool HasExplicitStrategy { get; private set; }
 
     public CustomPiiRuleAttribute(string pattern)
     {

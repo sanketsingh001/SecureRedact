@@ -1,7 +1,6 @@
 using FintechGuard.Pii.Attributes;
 using FintechGuard.Pii.Core;
 using FintechGuard.Pii.Serialization;
-using FluentAssertions;
 using Xunit;
 
 namespace FintechGuard.Pii.Tests;
@@ -46,20 +45,20 @@ public class PocoSerializationTests
         string json = engine.SerializeWithMasking(originalDto);
 
         // Verification: Card and PAN are masked in JSON
-        json.Should().NotContain("4532-0151-1283-0366");
-        json.Should().Contain("4532-****-****-0366");
-        json.Should().Contain("#fp[");
+        Assert.DoesNotContain("4532-0151-1283-0366", json);
+        Assert.Contains("4532-****-****-0366", json);
+        Assert.Contains("#fp[", json);
 
         // PublicIdentifier was ignored, so it stays plaintext
-        json.Should().Contain("\"PublicIdentifier\":\"ABCPE1234F\"");
+        Assert.Contains("\"PublicIdentifier\":\"ABCPE1234F\"", json);
 
         // 2. Deserialize & unmask in authorized consumer
         var restoredDto = engine.DeserializeAndUnmask<TransactionDto>(json);
 
-        restoredDto.Should().NotBeNull();
-        restoredDto!.TransactionId.Should().Be("TXN-2026-998811");
-        restoredDto.CardNumber.Should().Be("4532-0151-1283-0366");
-        restoredDto.CustomerPan.Should().Be("ABCPE1234F");
-        restoredDto.Amount.Should().Be(15450.50m);
+        Assert.NotNull(restoredDto);
+        Assert.Equal("TXN-2026-998811", restoredDto!.TransactionId);
+        Assert.Equal("4532-0151-1283-0366", restoredDto.CardNumber);
+        Assert.Equal("ABCPE1234F", restoredDto.CustomerPan);
+        Assert.Equal(15450.50m, restoredDto.Amount);
     }
 }

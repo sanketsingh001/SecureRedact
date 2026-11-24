@@ -1,376 +1,238 @@
-# SecureRedact (FintechGuard.Pii)
+# SecureRedact (`FintechGuard.Pii`)
 
-> **High-Throughput .NET 8 & 10 PII Masking & Format-Preserving Reversible Tokenization Engine for Fintech Payloads.**
-> Designed for deeply nested, arbitrary-key JSON payloads where key names have no semantic guarantee.
+> **Production-Grade, CPU-Only .NET 8 & 10 PII Masking, Format-Preserving AES-256-GCM Tokenization & Tiered NER Engine for Fintech Systems.**  
+> Built for arbitrary-key nested JSON/NDJSON payloads with explicit server CPU limits and zero GPU requirements.
 
-[![NuGet](https://img.shields.io/nuget/v/SecureRedact.svg)](https://www.nuget.org/packages/SecureRedact)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build & Test](https://img.shields.io/badge/tests-55%20passed-brightgreen.svg)](#)
 [![Target](https://img.shields.io/badge/.NET-8.0%20|%2010.0-blue.svg)](#)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM-orange.svg)](#)
 
+---
+
+## 1. What You Need to Use SecureRedact
+
+| Requirement | Details |
+| :--- | :--- |
+| **Runtime** | **.NET 8.0** or **.NET 10.0** (multi-targeted). |
+| **Hardware** | **Standard CPU only** — no GPU, CUDA, or Python installation required in production. |
+| **Packages** | Pick only what your service uses:<br>• `SecureRedact` — core JSON/NDJSON/POCO PII masking & crypto engine.<br>• `SecureRedact.AspNetCore` — automatic HTTP JSON request/response middleware + CPU backpressure.<br>• `SecureRedact.Ner` — optional CPU-only Tier 1 (lexicon/rules) + Tier 2 (ONNX transformer) NER for names, addresses & orgs. |
+| **Encryption Key** | • **Permanent redaction only (`CreateOneWay()`):** No key required.<br>• **Reversible tokenization (`#fp[...]`, `ENC{...}`):** Supply a 32-byte KMS key ring (`WithKeyRing` — recommended for production) or master passphrase (`WithMasterKey`), plus an optional HMAC key (`WithHashKey`) for `MaskingStrategy.Hash`. |
+| **ONNX Weights *(Tier 2 NER only)*** | Only needed if you enable neural NER for free-text fields (`chat_transcript`, `notes`). Download automatically from C# at startup/deploy via `OnnxNerModelDownloader.EnsureModelAsync(...)` (~`130 MB`, outbound HTTPS to Hugging Face once, cached locally). Not needed for Tier 0 financial/ID detection or Tier 1 rule-based NER. |
+
 ```bash
 dotnet add package SecureRedact
+# Optional:
+dotnet add package SecureRedact.AspNetCore
+dotnet add package SecureRedact.Ner
 ```
 
 ---
 
-## 1. Why FintechGuard.Pii vs Microsoft Presidio?
+## 2. Quick Start (1–2 Lines)
 
-| Capability | Microsoft Presidio (Python) | FintechGuard.Pii (.NET 8/10) |
-| :--- | :--- | :--- |
-| **Throughput & Speed** | Slow Python GIL; ~100-300 records/sec on nested dicts | **3,500+ records/sec (Masking)**, **52,000+ records/sec (Unmasking)** |
-| **Nested JSON Support** | Clunky manual dictionary recursion | **Native streaming** via `Utf8JsonReader` and `Utf8JsonWriter` |
-| **Arbitrary Key Names** | Relies heavily on key hints or heavy spaCy NLP | **Algorithmic check digits** (Luhn, Verhoeff, Mod-97) — zero key dependence |
-| **Reversible Unmasking** | ❌ None (One-way redaction/hash only) | ✅ **Built-in Reversible Cryptographic Tokenization** (AES-256-GCM) |
-| **"Feels Like Masking"** | Replaces with `<CREDIT_CARD>` tag | **Format-preserving mask** (`4532-****-****-0366#fp[...]`) |
-| **Indian Fintech PII** | Bare minimum | **Full statutory suite**: Aadhaar, PAN, GSTIN, IFSC, UPI, DL, Voter ID, Passport |
-| **Memory Footprint** | 500MB – 1.5GB (PyTorch/spaCy) | **~25MB** (Zero-alloc `Span<char>` & direct UTF-8 streaming) |
+### Option A — Core JSON / String / NDJSON Masking (`SecureRedact`)
 
----
-
-## 2. Key Capabilities
-
-### A. Arbitrary Key Names (Zero Key Dependency)
-In fintech pipelines, JSON keys can be anything (`"k0"`, `"f7"`, `"col_3"`, `"data"`). FintechGuard.Pii detects PII by inspecting the **values mathematically**:
-- **Credit/Debit Cards (PAN)**: Validated via the **Luhn Algorithm (Modulo 10)**. Random 16-digit sequences fail Luhn ~90% of the time, virtually eliminating false positives.
-- **Indian Aadhaar Card**: Validated via the **Verhoeff Algorithm** (Dihedral group $D_8$). Detects 100% of single-digit errors and over 95% of adjacent transpositions.
-- **Indian Income Tax PAN**: Validated via structural entity syntax (validates the 4th character entity type: `P` for Person, `C` for Company, `H` for HUF, `F` for Firm, etc.).
-- **GSTIN**: 15-character validation with statutory state code checks (01 to 38), embedded PAN validation, and required 'Z' digit.
-- **Bank IFSC**: 11-character bank code verification (`^[A-Z]{4}0[A-Z0-9]{6}$`).
-- **UPI VPA**: Validated across top Indian PSP and bank handles (`@okhdfcbank`, `@paytm`, `@ybl`, etc.).
-- **Global IBAN**: Validated using **ISO 7064 Modulo 97**.
-- **US SSN**: Strict area (no 000, 666, 9xx), group (no 00), and serial (no 0000) verification.
-- **Email, IP, and Phone**: RFC-compliant patterns and octet ranges.
-
----
-
-### B. "Encryption Which Feels Like Masking"
-Downstream logging systems, analytics, or junior engineers see what looks like standard masked data. But authorized compliance services with the Master Key can restore the data identically:
-
-| PII Type | Raw Value | Masked Output (Feels Like Masking) | After `UnmaskJson()` |
-| :--- | :--- | :--- | :--- |
-| **Credit Card** | `4532-0151-1283-0366` | `4532-****-****-0366#fp[uBzpCFHU3eKcr...]` | `4532-0151-1283-0366` |
-| **Aadhaar** | `2123 4567 8901` | `XXXX XXXX 8901#fp[Ip2HjHMR83wW...]` | `2123 4567 8901` |
-| **PAN Card** | `ABCPE1234F` | `AB****1234F#fp[9aB1kL...]` | `ABCPE1234F` |
-| **UPI ID** | `rohit.sharma@okhdfcbank` | `ro***a@okhdfcbank#fp[3mINQ4...]` | `rohit.sharma@okhdfcbank` |
-| **Email** | `audit.fintech@bank.com` | `a*****h@bank.com#fp[bVzQvn...]` | `audit.fintech@bank.com` |
-
----
-
-## 3. Quick Start
-
-### 1. Fluent Builder Setup
 ```csharp
 using FintechGuard.Pii.Core;
 
-var engine = PiiEngineBuilder.Create()
-    .WithMasterKey("your-32-byte-secret-master-key!") // AES-256-GCM
-    .AddDefaultRecognizers()                         // Indian + Global PII
-    .SetDefaultStrategy(MaskingStrategy.FormatPreservingReversible)
-    .Build();
+// Reversible AES-256-GCM masking (Passphrase or KeyRing), capped to ~25% of server CPU cores:
+using var engine = PiiEngine.CreateDefault(
+    masterKey: Environment.GetEnvironmentVariable("PII_MASTER_KEY"),
+    maxCpuPercent: 25);
+
+string masked = engine.MaskJson(rawJson);
+string restored = engine.UnmaskJson(masked);
+
+// Or zero-key permanent redaction:
+using var oneWay = PiiEngine.CreateOneWay(maxCpuPercent: 25);
+string redacted = oneWay.MaskJson(rawJson);
 ```
 
-### 2. Arbitrary-Key Nested JSON Masking & Unmasking
+For production key rotation from a KMS / Key Vault:
 ```csharp
-string arbitraryJson = """
+using var engine = PiiEngine.CreateWithKeyRing(
+    activeKeyId: "k2",
+    keyRing: new Dictionary<string, byte[]>
+    {
+        ["k1"] = legacyKeyBytes32,
+        ["k2"] = activeKeyBytes32
+    },
+    maxCpuPercent: 25);
+```
+
+### Option B — ASP.NET Core Automatic HTTP Middleware (`SecureRedact.AspNetCore`)
+
+Add a `SecureRedact` section to `appsettings.json` (inject `MasterKey` via User Secrets / Key Vault / environment variables in production):
+```json
 {
-  "k_random_1": "4532-0151-1283-0366",
-  "nested": {
-    "f_99": "2123 4567 8901",
-    "arr": [
-      { "item_id": "ABCPE1234F" },
-      { "status": "TXN_APPROVED" }
-    ]
+  "SecureRedact": {
+    "MasterKey": "",
+    "MaxCpuPercent": 25,
+    "ConcurrencyAcquireTimeoutMs": 2000,
+    "MaxBodySizeBytes": 10485760,
+    "ExcludePaths": [ "/health", "/metrics" ]
   }
 }
-""";
-
-// Mask nested JSON (Streaming Utf8JsonReader/Writer)
-string maskedJson = engine.MaskJson(arbitraryJson);
-
-// Unmask nested JSON back to original values
-string unmaskedJson = engine.UnmaskJson(maskedJson);
 ```
 
----
-
-## 4. POCO / DTO C# Model Support
-
-For strongly-typed C# models, use declarative attributes:
-
+Wire it up in `Program.cs` in 2 lines:
 ```csharp
-using FintechGuard.Pii.Attributes;
-using FintechGuard.Pii.Serialization;
+using FintechGuard.Pii.AspNetCore;
 
-public class TransactionDto
-{
-    public string TransactionId { get; set; }
-
-    [PiiMask(PiiType.CreditCard)]
-    public string CardNumber { get; set; }
-
-    [PiiMask(PiiType.Pan)]
-    public string CustomerPan { get; set; }
-
-    [PiiIgnore] // Never mask this field even if it matches a pattern
-    public string PublicIdentifier { get; set; }
-
-    public decimal Amount { get; set; }
-}
-
-// 1. Serialize with automatic masking:
-string json = engine.SerializeWithMasking(dto);
-
-// 2. Deserialize with automatic unmasking (for authorized services):
-var restoredDto = engine.DeserializeAndUnmask<TransactionDto>(json);
-```
-
----
-
-## 5. Adding Custom Rules and Recognizers
-
-You can register custom internal account numbers, loan IDs, or custom fintech patterns:
-
-```csharp
-var engine = PiiEngineBuilder.Create()
-    .WithMasterKey("fintech-key-256bit!")
-    .AddDefaultRecognizers()
-    .AddCustomRecognizer(
-        name: "FintechLoanId",
-        pattern: @"LOAN-\d{8}",
-        piiType: PiiType.Custom,
-        customTypeName: "LoanId",
-        validator: val => val.EndsWith("99") // Optional custom C# predicate
-    )
-    .Build();
-```
-
----
-
-## 6. Performance Benchmarks
-
-Tested on .NET 10.0 (Release Build) with 5,000 deeply nested transaction objects (35,000+ PII values):
-
-- **Payload Size**: 1.81 MB
-- **Masking Speed**: **3,681 records/sec** (includes full AES-256-GCM authenticated encryption + Luhn + Verhoeff checks)
-- **Unmasking Speed**: **52,925 records/sec** (19.17 MB/second)
-- **Integrity**: 100% byte-for-byte fidelity restored on unmask.
-
----
-
-## 7. ASP.NET Core Middleware (`FintechGuard.Pii.AspNetCore`)
-
-Protect your entire API surface with a single line of code. The middleware transparently masks PII in all request and response JSON bodies.
-
-### One-Liner Integration
-```csharp
-// Program.cs
-builder.Services.AddPiiMasking(options =>
-{
-    options.MasterKey = "your-32-byte-secret-master-key!";
-    options.MaskRequests = true;
-    options.MaskResponses = true;
-    options.ExcludePaths = ["/health", "/metrics", "/swagger"];
-});
+builder.Services.AddPiiMasking(builder.Configuration.GetSection("SecureRedact"));
 
 var app = builder.Build();
 app.UsePiiMasking();
 ```
+*If `MasterKey` and `MasterKeyBytes` are both omitted, the middleware safely falls back to `OneWayRedaction` instead of throwing.*
 
-### Or Inline (No DI Required)
+### Zero-Copy UTF-8, NDJSON Streaming & POCO Attributes
 ```csharp
-app.UsePiiMasking(options =>
+using System.Buffers;
+using FintechGuard.Pii.Attributes;
+using FintechGuard.Pii.Serialization;
+
+// Zero-copy UTF-8 JSON:
+var output = new ArrayBufferWriter<byte>(inputUtf8.Length + 256);
+engine.MaskJsonUtf8(inputUtf8, output);
+
+// Constant-memory NDJSON / multijson stream:
+await engine.MaskNdjsonStreamAsync(inputNdjsonStream, outputNdjsonStream);
+
+// Strongly-typed POCO redaction:
+public class TransactionDto
 {
-    options.MasterKey = "your-key";
-    options.ExcludePaths = ["/health"];
-});
-```
+    [PiiMask(PiiType.CreditCard, MaskingStrategy.OneWayRedaction, MaskChar = '#')]
+    public string CardNumber { get; set; } = string.Empty;
 
-### What Happens Automatically:
-- **Inbound Requests**: JSON bodies with PII (credit cards, Aadhaar, PAN, etc.) are masked before reaching your controllers.
-- **Outbound Responses**: JSON response bodies are scanned and PII is masked before reaching the client.
-- **Excluded Paths**: Health checks, metrics, and swagger are skipped for performance.
-- **Large Payloads**: Bodies larger than `MaxBodySizeBytes` (default 10 MB) are passed through without scanning.
+    [CustomPiiRule(@"LOAN-\d{6}", Strategy = MaskingStrategy.FormatPreservingReversible, KeepPrefix = 5, KeepSuffix = 2)]
+    public string LoanRef { get; set; } = string.Empty;
+
+    [PiiIgnore]
+    public string PublicReference { get; set; } = string.Empty;
+}
+
+string safeJson = engine.SerializeWithMasking(dto);
+var restoredDto = engine.DeserializeAndUnmask<TransactionDto>(safeJson);
+```
 
 ---
 
-## 8. LLM Privacy Proxy (`FintechGuard.Pii.LlmProxy`)
+## 3. CPU-Only High-Throughput Architecture (No GPU Required)
 
-Protect customer PII when sending prompts to OpenAI, Gemini, Claude, or any LLM API. Masks PII before it leaves your network, unmasks tokens in responses.
+SecureRedact uses a **3-tier cascaded CPU architecture** so structured financial payloads run at native-JSON speeds while unstructured text escalates only when needed:
 
-### Simple Prompt Masking
-```csharp
-var proxy = LlmPrivacyProxy.Create(options =>
-{
-    options.MasterKey = "your-key";
-});
+1. **Tier 0 — SIMD Character-Bitmask Gate + Zero-Copy Streaming Structured Engine (`SecureRedact`)**
+   - Single-pass `TextFeatures.Analyze` bitmask skips irrelevant recognizers per JSON string token.
+   - Strictly $O(n)$ linear scanners (Credit/Debit Cards with IIN/BIN + Luhn, Indian Mobile, NPCI UPI `@`-handle lookup) and `RegexOptions.NonBacktracking` DFAs (PAN, GSTIN with Modulo-36 checksum, Aadhaar with Verhoeff checksum, IBAN with ISO-13616 lengths + Mod-97, SSN, IFSC, Email, IPv4/IPv6, E.164 Phone, context-gated DOB).
+   - Versioned AES-256-GCM tokenization (`#fp[...]` and `ENC{...}`) with key-ID (`kid`) rotation headers, thread-local `AesGcm` instances, and keyed HMAC-SHA256 hashing (`MaskingStrategy.Hash`).
 
-// Before sending to LLM:
-string safePrompt = proxy.MaskPrompt("Analyze transaction for card 4532-0151-1283-0366");
-// safePrompt: "Analyze transaction for card 4532-****-****-0366#fp[...]"
+2. **Tier 1 — Sub-Millisecond Pure-CPU Contextual & Lexicon NER (`SecureRedact.Ner`)**
+   - `ContextualNerRecognizer` uses an $O(n)$ case-insensitive Aho-Corasick automaton, English & Hindi Devanagari triggers, curated Indian + global name lexicons, and structural address extraction with banking stopword filtering. Zero ONNX weights required.
 
-// After receiving LLM response (if it echoed back tokens):
-string restored = proxy.UnmaskResponse(llmResponse);
-```
-
-### Transparent HttpClient Integration
-```csharp
-// Works with any LLM SDK that uses HttpClient
-var client = PiiSafeClientFactory.CreateForOpenAI(engine, "sk-your-api-key");
-// All requests through this client automatically mask PII in prompts
-// All responses automatically unmask reversible tokens
-var response = await client.PostAsync("/v1/chat/completions", content);
-```
-
-### Audit Before Sending
-```csharp
-// See exactly what PII would be sent to the LLM
-var detections = proxy.AuditPrompt("Customer card is 4532-0151-1283-0366, UPI is rohit.sharma@okhdfcbank");
-// Returns: [CreditCard: 4532-0151-1283-0366, UpiId: rohit.sharma@okhdfcbank]
-```
-
-### Supported LLM Providers
-- **OpenAI** (GPT-4, GPT-4o, o1, etc.)
-- **Google Gemini**
-- **Anthropic Claude**
-- **Any custom endpoint** via `PiiSafeClientFactory.Create(engine, "https://your-llm.com")`
+3. **Tier 2 — Quantized CPU ONNX Token-Classification NER (`SecureRedact.Ner`)**
+   - `OnnxNerRecognizer` executes `BertTokenizer` encoding with Devanagari-safe regex pre-tokenization (`[\w\p{M}]+|[^\w\p{M}\s]`), exact UTF-16 `EncodedToken.Offset` alignment, left/right WordPiece boundary snapping, sliding windows (`MaxWindowsPerField = 8` CPU DoS cap), softmax BIO/BIOES decoding, and anti-spinning `SessionOptions`.
 
 ---
 
-## 9. Azure Data Explorer / Kusto Integration (`SecureRedact.AzureDataExplorer`)
+## 4. Easy Tiered CPU NER Setup (`SecureRedact.Ner`)
 
-A dedicated NuGet package for teams using the official `Kusto.Ingest` SDK. Easily wrap your client in 1 line of code to transparently mask PII in all JSON/CSV streams and files before they are forwarded to Azure Data Explorer (ADX) — with zero changes to your KQL queries or table schemas!
+### Pure-.NET Model Download + 1-Line Engine Registration (No Python Needed)
 
-```bash
-dotnet add package SecureRedact.AzureDataExplorer
-```
-
-### One-Line Integration
 ```csharp
-using FintechGuard.Pii.AzureDataExplorer;
-
-// In Program.cs of any team:
-builder.Services.AddSecureRedactForAdx(
-    kustoFactory: sp => KustoIngestFactory.CreateQueuedIngestClient(new KustoConnectionStringBuilder("...").WithAadApplicationKeyAuthentication(...)),
-    piiMasterKey: "your-32-byte-master-key!"
-);
-```
-
-Or, wrap an existing client instance:
-```csharp
-IKustoIngestClient rawClient = KustoIngestFactory.CreateQueuedIngestClient(kcsb);
-IKustoIngestClient secureClient = rawClient.WithSecureRedact(engine);
-```
-
-### What Happens Automatically:
-- **`IngestFromStreamAsync` & `IngestFromFileAsync`**: Any JSON or multi-JSON payload is intercepted and streamed through the `PiiEngine` in memory. The sanitized stream is then forwarded to the real Kusto ingest client.
-- **Data Source Awareness**: It automatically bypasses masking for unsupported formats (CSV, TSV, Parquet) to avoid data corruption, focusing purely on JSON schemas.
-- **Zero Allocations**: Utilizes streaming for high throughput and minimal memory overhead during data ingestion.
-
----
-
-## 10. ONNX BERT-NER Machine Learning Plugin (`SecureRedact.Ner`)
-
-For unstructured, free-form text fields (e.g. `chat_transcript`, `agent_notes`, `support_ticket`) where Regex alone is not enough, `SecureRedact.Ner` attaches hardware-accelerated ONNX token classification models directly into the pipeline.
-
-```bash
-dotnet add package SecureRedact.Ner
-```
-
-### Usage:
-```csharp
+using FintechGuard.Pii.Core;
 using FintechGuard.Pii.Ner;
 
-var engine = PiiEngineBuilder.Create()
-    .WithMasterKey("your-32-byte-secret-master-key!")
+// 1. Download & cache Xenova/distilbert-base-multilingual-cased-ner-hrl (~130 MB) once on startup:
+string modelDir = Path.Combine(AppContext.BaseDirectory, "models", "distilbert-multilingual-ner");
+await OnnxNerModelDownloader.EnsureModelAsync(modelDir);
+
+// 2. Attach Tier 1 + Tier 2 CPU NER capped to 25% host CPU & scoped to free-text JSON keys:
+using var engine = PiiEngineBuilder.Create()
+    .WithKeyRing("k2", keyRing)
+    .WithMaxCpuUsage(25, acquireTimeout: TimeSpan.FromSeconds(2))
     .AddDefaultRecognizers()
-    // Selectively target fields that contain free-form multilingual text:
-    .AddOnnxNerRecognizer(
-        modelPath: "path/to/bert-ner.onnx",
-        targetKeys: new[] { "chat_transcript", "notes", "feedback" },
-        confidence: 0.85
-    )
+    .AddTieredCpuNer(
+        modelDir,
+        targetKeys: ["chat_transcript", "notes", "address_line"],
+        maxCpuPercent: 25)
     .Build();
 ```
 
-- **Selective Routing**: Only executes heavy tensor calculations on specified keys to maintain maximum pipeline speed.
-- **Zero-Copy Marshaling**: Evaluates `DenseTensor<long>` directly on CPU via `Microsoft.ML.OnnxRuntime`.
-- **Supports Multilingual NER**: Detects names and personal entities across English, Hindi, and other regional scripts.
+*(Need a reproducible offline script for Docker image builds instead? `pip install huggingface_hub && python scripts/download_ner_model.py` populates `models/distilbert-multilingual-ner-int8`.)*
+
+> **Production Threading Rule:** Keep `EnableMicroBatching = false` (the default in `FromHuggingFaceDirectory` and `AddTieredCpuNer`) when running ONNX inside `PiiEngine` or ASP.NET Core middleware — direct parallel execution is both faster on multi-core CPUs (`172.3` vs `150.5 inf/s` on 8 cores) and avoids sync-over-async blocking. Only set `EnableMicroBatching = true` when calling `OnnxNerRecognizer.RecognizeAsync(...)` directly from async workers.
+
+### CPU-Only ONNX Model Selection Guide
+
+| Hugging Face ONNX Model | ONNX File & Size | Depth & Languages | CPU Tradeoff & Recommendation |
+| :--- | :--- | :--- | :--- |
+| **`Xenova/distilbert-base-multilingual-cased-ner-hrl`** | `onnx/model_quantized.onnx` (`129.09 MB`) | 6 layers, 104 langs (Hindi Devanagari + English + Hinglish) | **Recommended.** 1.49x faster and markedly higher Indian/Hindi recall than symmetric `model_int8.onnx`; 1.82x faster than 12-layer mBERT. |
+| `Xenova/bert-base-multilingual-cased-ner-hrl` | `onnx/model_quantized.onnx` (`170.2 MB`) | 12 layers, 104 langs (Hindi + English) | Higher-capacity fallback (~1.82x slower on CPU with similar Indian entity recall). |
+| `onnx-community/distilbert-NER-ONNX` | `onnx/model_int8.onnx` (`62.7 MB`) | 6 layers, English-only | Fast English-only option; no Hindi/Devanagari NER support. |
+| `onnx-community/piiranha-v1-detect-personal-information-ONNX` | `onnx/model_int8.onnx` (`302.5 MB`) | 12-layer DeBERTa-v2, European langs | ~2.3x larger, no Hindi support, and most PII labels overlap with deterministic Tier 0 recognizers. |
 
 ---
 
-## 11. Resilient Error Handling, Safety Net & OpenTelemetry
+## 5. Server CPU Limiting, Backpressure & Security Controls
 
-### Fail-Safe Fallback Modes (`PiiErrorBehavior`)
-Fintech systems cannot crash when bad JSON enters the queue. SecureRedact offers configurable error strategies:
-```csharp
-var engine = PiiEngineBuilder.Create()
-    .WithMasterKey("...")
-    .AddDefaultRecognizers()
-    .SetErrorBehavior(PiiErrorBehavior.LogAndMaskFallback) // Never throw; redact entire payload on fatal error
-    .Build();
-```
+On shared application hosts, cap CPU consumption explicitly across every layer so traffic spikes never starve core API threads:
 
-### Rich Masking Audit & Detections (`MaskingResult`)
-Inspect all detected entities, their JSON paths, recognizer names, and execution timings:
-```csharp
-MaskingResult result = engine.MaskJsonWithAudit(jsonString);
-
-Console.WriteLine($"PII Found: {result.HasPii}");
-Console.WriteLine($"Masked Fields: {result.PiiFieldCount}");
-Console.WriteLine($"Duration: {result.DurationMs} ms");
-
-foreach (var detection in result.Detections)
-{
-    Console.WriteLine($"Detected {detection.Type} at {detection.JsonPath} (Confidence: {detection.Confidence:P})");
-}
-```
-
-### Native OpenTelemetry Metrics (`PiiMetrics`)
-SecureRedact automatically instruments metrics under the `FintechGuard.PiiEngine` meter:
-- `pii_records_processed_total`: Count of processed JSON payloads.
-- `pii_entities_detected_total`: Counter tagged with `pii_type`.
-- `pii_processing_time_ms`: Processing latency histogram.
+- **Core Engine (`PiiEngineBuilder.WithMaxCpuUsage(pct)` / `WithMaxConcurrency(n, timeout)`):** Limits concurrent engine calls using a fair `SemaphoreSlim` bulkhead and honors `PiiErrorBehavior` (`Redact`, `PassThrough`, `Throw`) on slot timeout.
+- **ONNX NER (`OnnxNerOptions.WithMaxCpuUsage(pct)`, `MaxWindowsPerField`, `DisableThreadSpinning`):** Disables ONNX Runtime intra/inter-op worker busy-spinning (`allow_spinning = 0` by default), restricts simultaneous transformer runs, and caps worst-case sliding windows per oversized text field (`8` by default).
+- **ASP.NET Core Middleware (`PiiMaskingOptions.MaxCpuPercent` / `MaxConcurrentRequests`):**
+  - Acquires `WaitAsync` **only around inbound/outbound JSON CPU masking** — never held across downstream `await _next(context)` I/O.
+  - Under overload with `ConcurrencyLimitBehavior.RejectWith503`, responds fail-closed with HTTP `503 Service Unavailable` + `Retry-After: 1` (never forwards unmasked PII).
+  - Handles `ContentLength` and chunked/HTTP2 streams, passes binary downloads & SSE (`text/event-stream`) through with zero buffering, enforces `RejectWith413` on oversized bodies, and restores `HttpContext.Response.Body` on downstream exceptions.
 
 ---
 
-## 12. Interactive Web API Sample (`samples/FintechGuard.WebApi`)
+## 6. Observability & Resilience
 
-An out-of-the-box ASP.NET Core Web API demonstrating real-time masking, unmasking, and edge cases:
+- **OpenTelemetry Meter (`FintechGuard.PiiEngine`)** (`PiiMetrics`):
+  - `pii.payloads.processed` (Counter)
+  - `pii.elements.masked` (Counter tagged by `pii_type`)
+  - `pii.processing.errors` (Counter tagged by `error_type`)
+  - `pii.processing.duration` (Histogram in `ms`)
+- **ActivitySource (`FintechGuard.PiiEngine`)** (`PiiTracing`)
+- **Audit Results (`MaskJsonWithAudit`)**: `HasPii`, `PiiFieldCount`, `DurationMs`, and per-detection `Type`, `RecognizerName`, `Confidence`, `JsonPath`, and `FullJsonPath`.
 
-- **`POST /api/pii/mask`**: Masks arbitrary nested JSON payloads with format-preserving reversible tokens (`#ENC:v1:...`).
-- **`POST /api/pii/unmask`**: Restores the original payload using the authenticated master key.
-- **`POST /api/pii/detect`**: Audits and reports all PII types and locations without altering the payload.
-- **`GET /api/pii/sample-edge-cases`**: Returns real-world fintech edge cases (deeply nested objects, arrays, false-positive test cases, statutory ID formats).
+---
 
-Run the sample:
+## 7. Verification, Benchmarks & Commands
+
+Verified across both **`.NET 8.0` (`8.0.26`)** and **`.NET 10.0` (`10.0.9`)** on an 8-core Windows CPU (Release build, no GPU):
+
+- **Unit & Integration Tests:** **80 / 80 passed on `net8.0`** and **80 / 80 passed on `net10.0`** (`0` failures, `0` skipped, `0` build warnings/errors).
+- **LoadTest (`tests/FintechGuard.Pii.LoadTest`):**
+  - **Tier 0 Structured JSON (`MaskJson` string, 100k payloads):** `44,391 payloads/sec` (`19.69 MB/s`), p50=`0.129 ms`, p95=`0.204 ms`, p99=`1.097 ms`, `0` Gen1/Gen2 GCs
+  - **Tier 0 Structured JSON (`MaskJsonUtf8` zero-copy, 100k payloads):** `88,869 payloads/sec` (`39.41 MB/s`), p50=`0.049 ms`, p95=`0.121 ms`, p99=`0.808 ms`, `0` Gen1/Gen2 GCs
+  - **Tier 0 + Tier 1 Pure-CPU Contextual NER (5 unstructured fields, 50k payloads):** `34,890 payloads/sec` (`11.78 MB/s`), p50=`0.184 ms`, p95=`0.360 ms`, p99=`1.125 ms`, `0` Gen1/Gen2 GCs
+  - **Tier 0 + Tier 2 Synthetic ONNX Fixture (direct per-field, 10k payloads):** `9,853 payloads/sec` (`3.33 MB/s`), p50=`0.613 ms`, p95=`1.611 ms`, p99=`3.094 ms`, `0` Gen1/Gen2 GCs
+  - **Tier 2 Synthetic ONNX Fixture (`EnableMicroBatching = true`, 10k inferences):** `38,407 batched ONNX inferences/sec` (`0.026 ms` avg/op)
+  - **Real 6-Layer Quantized Multilingual DistilBERT (`Xenova/distilbert-base-multilingual-cased-ner-hrl`, `model_quantized.onnx`, `129.09 MB`):**
+    - **Standalone Direct Parallel (8 cores, `IntraOpNumThreads=1`, 200 inferences):** `172.3 ONNX inferences/sec`, p50=`42.56 ms`, p95=`57.61 ms`, p99=`75.86 ms`
+    - **Standalone Micro-Batched (4 batch workers, 32 concurrent callers, 400 inferences):** `150.5 batched ONNX inferences/sec` (`6.64 ms` avg/op)
+    - **Production Cascaded Gateway (90% Tier 0+1 / 10% escalated to Real DistilBERT, 3,000 payloads):** `2,181.0 payloads/sec` (`0.459 ms` avg/payload)
+    - **Real-Model Accuracy Audit (with `DefaultFintechExcludedTerms`):** Cleanly masks Indian English (`Sanjay Kumar`, `Bengaluru`, `Priya Sharma`, `Mumbai`, `Rajesh Nair`, `MG Road`, `Kochi`, `Kerala`), Hinglish (`Vikram Patel`, `Indiranagar`, `Bengaluru`), and Hindi Devanagari (`संजय कुमार`, `मुंबई`, `प्रिया शर्मा`, `दिल्ली`, `रवि वर्मा`, `पुणे`), with `0` false positives on the `NEFT` banking trap.
+- **Single-Threaded Batch (`benchmarks/FintechGuard.Pii.Benchmarks`, 5,000 nested objects / `1.81 MB`):**
+  - **Masking:** `4,968 records/sec` (`1.80 MB/s`, `1,006 ms`)
+  - **Unmasking:** `37,884 records/sec` (`13.72 MB/s`, `131 ms`)
+  - **Integrity:** 100% lossless round-trip fidelity verified.
+
 ```bash
-dotnet run --project samples/FintechGuard.WebApi
-```
-
----
-
-## 13. High-Throughput Load Benchmark (15,000+ TPS)
-
-A high-performance benchmark suite is provided in `tests/FintechGuard.Pii.LoadTest`:
-```bash
+dotnet build FintechGuard.slnx -c Release
+dotnet test FintechGuard.slnx -c Release --no-build
+dotnet run -c Release --project benchmarks/FintechGuard.Pii.Benchmarks
 dotnet run -c Release --project tests/FintechGuard.Pii.LoadTest
 ```
 
-Results on standard modern CPU:
-- **Scenario A (Structured JSON, 1 ML Field)**: **18,500+ TPS** (~12.6 MB/s, 0.05ms avg latency)
-- **Scenario B (Unstructured 'Bad Data', 5 ML Fields)**: **12,900+ TPS** (~4.4 MB/s, 0.07ms avg latency)
-
 ---
 
-## 14. NuGet Packages Overview
+## 8. NuGet Packages (`1.3.0`)
 
-| Package | Version | Description |
-| :--- | :--- | :--- |
-| **`SecureRedact`** | `1.2.0` | Core PII masking, reversible AES-256-GCM tokenization, streaming JSON engine, and statutory recognizers. |
-| **`SecureRedact.AspNetCore`** | `1.2.0` | Transparent ASP.NET Core middleware for HTTP requests and JSON responses. |
-| **`SecureRedact.LlmProxy`** | `1.2.0` | LLM privacy client for OpenAI, Claude, and Gemini with reversible token unmasking. |
-| **`SecureRedact.AzureDataExplorer`** | `1.2.0` | Kusto Ingest wrapper for Azure Data Explorer stream and file masking. |
-| **`SecureRedact.Ner`** | `1.2.0` | ONNX BERT-NER named entity recognition plugin for unstructured text. |
-
+| Package | Description |
+| :--- | :--- |
+| **`SecureRedact`** | Core zero-copy PII masking, reversible AES-256-GCM key-ring tokenization, CPU concurrency controls, 1-line factories, and statutory validators (`net8.0;net10.0`). |
+| **`SecureRedact.AspNetCore`** | Chunked-safe, fail-closed ASP.NET Core request/response masking middleware with `IConfiguration` binding and non-blocking CPU backpressure (`net8.0;net10.0`). |
+| **`SecureRedact.Ner`** | Tier 1 pure-CPU Aho-Corasick contextual NER + Tier 2 quantized ONNX NER with pure-.NET model downloader, CPU caps, and micro-batching (`net8.0;net10.0`). |

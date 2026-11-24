@@ -1,15 +1,16 @@
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using FintechGuard.Pii.Attributes;
 using FintechGuard.Pii.Core;
-using FintechGuard.Pii.Masking;
 
 namespace FintechGuard.Pii.Serialization;
 
 /// <summary>
-/// System.Text.Json converter factory that automatically applies [PiiMask] and [CustomPiiRule] attributes
-/// during model serialization and deserialization.
+/// System.Text.Json converter factory that automatically applies [PiiMask], [CustomPiiRule], and [PiiIgnore]
+/// attributes during model serialization and deserialization using compiled expression delegates.
 /// </summary>
 public sealed class PiiJsonConverterFactory : JsonConverterFactory
 {
@@ -18,16 +19,26 @@ public sealed class PiiJsonConverterFactory : JsonConverterFactory
 
     public PiiJsonConverterFactory(IPiiEngine engine, bool unmaskOnDeserialize = false)
     {
-        _engine = engine;
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _unmaskOnDeserialize = unmaskOnDeserialize;
     }
 
     public override bool CanConvert(Type typeToConvert)
     {
-        // Applies to POCO / class types (excluding primitives, strings, collections directly)
-        return typeToConvert.IsClass &&
-               typeToConvert != typeof(string) &&
-               !typeof(System.Collections.IEnumerable).IsAssignableFrom(typeToConvert);
+        if (!typeToConvert.IsClass || typeToConvert.IsAbstract || typeToConvert.IsInterface)
+            return false;
+
+        if (typeToConvert == typeof(string) ||
+            typeToConvert == typeof(Type) ||
+            typeof(System.Collections.IEnumerable).IsAssignableFrom(typeToConvert) ||
+            typeof(Stream).IsAssignableFrom(typeToConvert) ||
+            typeof(JsonDocument).IsAssignableFrom(typeToConvert) ||
+            typeof(JsonElement).IsAssignableFrom(typeToConvert) ||
+            typeof(Delegate).IsAssignableFrom(typeToConvert))
+            return false;
+
+        // Only convert POCOs that actually have a public parameterless constructor
+        return typeToConvert.GetConstructor(Type.EmptyTypes) != null;
     }
 
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
@@ -42,13 +53,19 @@ internal sealed class PiiPocoConverter<T> : JsonConverter<T> where T : class, ne
     private readonly IPiiEngine _engine;
     private readonly bool _unmaskOnDeserialize;
     private readonly List<PropertyMetadata> _properties = new();
+    private readonly Dictionary<string, PropertyMetadata> _propertyLookup = new(StringComparer.OrdinalIgnoreCase);
 
-    private record PropertyMetadata(
-        PropertyInfo Property,
-        string JsonPropertyName,
-        PiiMaskAttribute? MaskAttr,
-        CustomPiiRuleAttribute? CustomAttr,
-        bool IsIgnored);
+    private sealed class PropertyMetadata
+    {
+        public required Func<T, object?> Getter { get; init; }
+        public required Action<T, object?>? Setter { get; init; }
+        public required Type PropertyType { get; init; }
+        public required string JsonPropertyName { get; init; }
+        public PiiMaskAttribute? MaskAttr { get; init; }
+        public CustomPiiRuleAttribute? CustomAttr { get; init; }
+        public Regex? CustomRegex { get; init; }
+        public bool IsIgnored { get; init; }
+    }
 
     public PiiPocoConverter(IPiiEngine engine, bool unmaskOnDeserialize)
     {
@@ -57,21 +74,44 @@ internal sealed class PiiPocoConverter<T> : JsonConverter<T> where T : class, ne
 
         foreach (var prop in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (!prop.CanRead) continue;
+            if (!prop.CanRead || prop.GetIndexParameters().Length > 0)
+                continue;
+
+            if (prop.GetCustomAttribute<JsonIgnoreAttribute>() != null)
+                continue;
 
             bool isIgnored = prop.GetCustomAttribute<PiiIgnoreAttribute>() != null;
             var maskAttr = prop.GetCustomAttribute<PiiMaskAttribute>();
             var customAttr = prop.GetCustomAttribute<CustomPiiRuleAttribute>();
+            Regex? customRegex = customAttr != null
+                ? new Regex(customAttr.Pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100))
+                : null;
 
             var jsonAttr = prop.GetCustomAttribute<JsonPropertyNameAttribute>();
             string name = jsonAttr?.Name ?? prop.Name;
 
-            _properties.Add(new PropertyMetadata(prop, name, maskAttr, customAttr, isIgnored));
+            var meta = new PropertyMetadata
+            {
+                Getter = CompileGetter(prop),
+                Setter = prop.CanWrite ? CompileSetter(prop) : null,
+                PropertyType = prop.PropertyType,
+                JsonPropertyName = name,
+                MaskAttr = maskAttr,
+                CustomAttr = customAttr,
+                CustomRegex = customRegex,
+                IsIgnored = isIgnored
+            };
+
+            _properties.Add(meta);
+            _propertyLookup[name] = meta;
         }
     }
 
     public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
+        if (reader.TokenType == JsonTokenType.Null)
+            return null;
+
         if (reader.TokenType != JsonTokenType.StartObject)
             throw new JsonException("Expected StartObject token.");
 
@@ -87,28 +127,25 @@ internal sealed class PiiPocoConverter<T> : JsonConverter<T> where T : class, ne
                 string? propName = reader.GetString();
                 reader.Read();
 
-                var meta = _properties.FirstOrDefault(p =>
-                    string.Equals(p.JsonPropertyName, propName, StringComparison.OrdinalIgnoreCase));
-
-                if (meta == null || !meta.Property.CanWrite)
+                if (propName == null || !_propertyLookup.TryGetValue(propName, out var meta) || meta.Setter == null)
                 {
                     reader.Skip();
                     continue;
                 }
 
-                if (meta.Property.PropertyType == typeof(string))
+                if (meta.PropertyType == typeof(string))
                 {
-                    string? rawVal = reader.GetString();
-                    if (rawVal != null && _unmaskOnDeserialize)
+                    string? rawVal = reader.TokenType == JsonTokenType.Null ? null : reader.GetString();
+                    if (rawVal != null && _unmaskOnDeserialize && !meta.IsIgnored)
                     {
                         rawVal = _engine.UnmaskValue(rawVal);
                     }
-                    meta.Property.SetValue(instance, rawVal);
+                    meta.Setter(instance, rawVal);
                 }
                 else
                 {
-                    object? val = JsonSerializer.Deserialize(ref reader, meta.Property.PropertyType, options);
-                    meta.Property.SetValue(instance, val);
+                    object? val = JsonSerializer.Deserialize(ref reader, meta.PropertyType, options);
+                    meta.Setter(instance, val);
                 }
             }
         }
@@ -120,9 +157,10 @@ internal sealed class PiiPocoConverter<T> : JsonConverter<T> where T : class, ne
     {
         writer.WriteStartObject();
 
-        foreach (var meta in _properties)
+        for (int i = 0; i < _properties.Count; i++)
         {
-            object? propVal = meta.Property.GetValue(value);
+            var meta = _properties[i];
+            object? propVal = meta.Getter(value);
             if (propVal == null)
             {
                 writer.WriteNull(meta.JsonPropertyName);
@@ -131,19 +169,28 @@ internal sealed class PiiPocoConverter<T> : JsonConverter<T> where T : class, ne
 
             if (propVal is string strVal && !meta.IsIgnored)
             {
-                string outputVal = strVal;
+                string outputVal;
 
                 if (meta.MaskAttr != null)
                 {
-                    outputVal = _engine.MaskValue(strVal, meta.MaskAttr.PiiType);
+                    MaskingStrategy? strategyOverride = meta.MaskAttr.HasExplicitStrategy ? meta.MaskAttr.Strategy : null;
+                    char? maskCharOverride = meta.MaskAttr.HasExplicitMaskChar ? meta.MaskAttr.MaskChar : null;
+
+                    if (_engine is PiiEngine concreteEngine)
+                    {
+                        outputVal = concreteEngine.MaskValue(strVal, meta.MaskAttr.PiiType, null, strategyOverride, maskCharOverride);
+                    }
+                    else
+                    {
+                        outputVal = _engine.MaskValue(strVal, meta.MaskAttr.PiiType);
+                    }
                 }
-                else if (meta.CustomAttr != null)
+                else if (meta.CustomAttr != null && meta.CustomRegex != null)
                 {
-                    outputVal = _engine.MaskValue(strVal);
+                    outputVal = ApplyCustomRule(strVal, meta.CustomAttr, meta.CustomRegex);
                 }
                 else
                 {
-                    // Dynamic scan if string
                     outputVal = _engine.MaskValue(strVal);
                 }
 
@@ -157,5 +204,61 @@ internal sealed class PiiPocoConverter<T> : JsonConverter<T> where T : class, ne
         }
 
         writer.WriteEndObject();
+    }
+
+    private string ApplyCustomRule(string input, CustomPiiRuleAttribute attr, Regex regex)
+    {
+        return regex.Replace(input, match =>
+        {
+            string raw = match.Value;
+            string visual = CreateCustomVisualMask(raw, attr.MaskChar, attr.KeepPrefix, attr.KeepSuffix);
+
+            if (_engine is PiiEngine concreteEngine)
+            {
+                MaskingStrategy? strategyOverride = attr.HasExplicitStrategy ? attr.Strategy : null;
+                return concreteEngine.ProtectCustomMatch(raw, visual, PiiType.Custom, strategyOverride);
+            }
+
+            return visual;
+        });
+    }
+
+    private static string CreateCustomVisualMask(string raw, char maskChar, int keepPrefix, int keepSuffix)
+    {
+        int len = raw.Length;
+        int p = Math.Max(0, keepPrefix);
+        int s = Math.Max(0, keepSuffix);
+
+        if (len <= p + s)
+            return new string(maskChar, len);
+
+        return string.Create(len, (raw, maskChar, p, s), static (span, state) =>
+        {
+            if (state.p > 0)
+                state.raw.AsSpan(0, state.p).CopyTo(span);
+            span.Slice(state.p, state.raw.Length - state.p - state.s).Fill(state.maskChar);
+            if (state.s > 0)
+                state.raw.AsSpan(state.raw.Length - state.s, state.s).CopyTo(span.Slice(state.raw.Length - state.s));
+        });
+    }
+
+    private static Func<T, object?> CompileGetter(PropertyInfo prop)
+    {
+        var instanceParam = Expression.Parameter(typeof(T), "instance");
+        var propertyAccess = Expression.Property(instanceParam, prop);
+        var boxed = Expression.Convert(propertyAccess, typeof(object));
+        return Expression.Lambda<Func<T, object?>>(boxed, instanceParam).Compile();
+    }
+
+    private static Action<T, object?>? CompileSetter(PropertyInfo prop)
+    {
+        if (prop.GetSetMethod(nonPublic: false) == null)
+            return null;
+
+        var instanceParam = Expression.Parameter(typeof(T), "instance");
+        var valueParam = Expression.Parameter(typeof(object), "value");
+        var castValue = Expression.Convert(valueParam, prop.PropertyType);
+        var assign = Expression.Assign(Expression.Property(instanceParam, prop), castValue);
+        return Expression.Lambda<Action<T, object?>>(assign, instanceParam, valueParam).Compile();
     }
 }

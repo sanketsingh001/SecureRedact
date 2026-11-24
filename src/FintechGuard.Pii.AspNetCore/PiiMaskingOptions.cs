@@ -3,13 +3,45 @@ using FintechGuard.Pii.Core;
 namespace FintechGuard.Pii.AspNetCore;
 
 /// <summary>
+/// Controls middleware behavior when a request or response payload exceeds <see cref="PiiMaskingOptions.MaxBodySizeBytes"/>.
+/// </summary>
+public enum OversizedPayloadBehavior
+{
+    /// <summary>
+    /// Fail-closed default: reject oversized payloads with HTTP 413 Payload Too Large so uninspected PII never leaks.
+    /// </summary>
+    RejectWith413 = 0,
+
+    /// <summary>
+    /// Opt-in passthrough: skip masking for oversized payloads.
+    /// </summary>
+    PassThrough = 1
+}
+
+/// <summary>
+/// Controls middleware behavior when all server CPU PII inspection slots are occupied.
+/// </summary>
+public enum ConcurrencyLimitBehavior
+{
+    /// <summary>
+    /// Fail-closed default: reject excess requests with HTTP 503 Service Unavailable and Retry-After header once timeout expires.
+    /// </summary>
+    RejectWith503 = 0,
+
+    /// <summary>
+    /// Wait asynchronously until a CPU inspection slot becomes available (respecting request cancellation).
+    /// </summary>
+    Wait = 1
+}
+
+/// <summary>
 /// Configuration options for the PII masking middleware.
 /// </summary>
 public class PiiMaskingOptions
 {
     /// <summary>
     /// AES-256 master key passphrase for reversible format-preserving masking.
-    /// If null, one-way redaction will be used.
+    /// If null (and MasterKeyBytes is null), reversible strategies fall back to OneWayRedaction.
     /// </summary>
     public string? MasterKey { get; set; }
 
@@ -37,6 +69,12 @@ public class PiiMaskingOptions
     /// Default masking strategy. Default: FormatPreservingReversible.
     /// </summary>
     public MaskingStrategy DefaultStrategy { get; set; } = MaskingStrategy.FormatPreservingReversible;
+
+    /// <summary>
+    /// Behavior when request or response bodies exceed <see cref="MaxBodySizeBytes"/>.
+    /// Default is <see cref="OversizedPayloadBehavior.RejectWith413"/> (fail-closed).
+    /// </summary>
+    public OversizedPayloadBehavior OversizedBehavior { get; set; } = OversizedPayloadBehavior.RejectWith413;
 
     /// <summary>
     /// Request paths to exclude from PII processing (e.g. "/health", "/metrics", "/swagger").
@@ -70,8 +108,27 @@ public class PiiMaskingOptions
     public Action<PiiEngineBuilder>? ConfigureEngine { get; set; }
 
     /// <summary>
-    /// Maximum request/response body size to process (in bytes). Bodies larger than this are passed through without scanning.
-    /// Default: 10 MB.
+    /// Maximum request/response body size to inspect (in bytes). Default: 10 MB.
     /// </summary>
     public long MaxBodySizeBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Target maximum server CPU percentage (1-100) for concurrent PII inspection (0 = unlimited). Ignored if <see cref="MaxConcurrentRequests"/> &gt; 0.
+    /// </summary>
+    public int MaxCpuPercent { get; set; } = 0;
+
+    /// <summary>
+    /// Explicit cap on concurrent CPU-bound request/response PII masking operations (0 = derive from <see cref="MaxCpuPercent"/> or unlimited).
+    /// </summary>
+    public int MaxConcurrentRequests { get; set; } = 0;
+
+    /// <summary>
+    /// Wait timeout in milliseconds for a CPU inspection slot when <see cref="ConcurrencyExceededBehavior"/> is <see cref="ConcurrencyLimitBehavior.RejectWith503"/>. Default: 2000 ms.
+    /// </summary>
+    public int ConcurrencyAcquireTimeoutMs { get; set; } = 2000;
+
+    /// <summary>
+    /// Behavior when the server CPU inspection bulkhead is saturated. Default: <see cref="ConcurrencyLimitBehavior.RejectWith503"/>.
+    /// </summary>
+    public ConcurrencyLimitBehavior ConcurrencyExceededBehavior { get; set; } = ConcurrencyLimitBehavior.RejectWith503;
 }

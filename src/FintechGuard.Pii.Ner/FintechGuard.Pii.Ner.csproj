@@ -14,10 +14,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SecureRedact.Ner</PackageId>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Authors>Sanket Singh</Authors>
     <Company>Sanket Singh</Company>
-    <Description>ONNX BERT-NER named entity recognition plugin for SecureRedact. Enables high-throughput CPU-optimized neural token classification for names, addresses, and organizations in unstructured JSON fields.</Description>
+    <Description>CPU-only tiered NER plugin for SecureRedact: sub-millisecond Aho-Corasick contextual NER plus real tokenized ONNX token-classification with micro-batching for names, addresses, and organizations.</Description>
     <PackageTags>pii;masking;ner;onnx;bert;token-classification;nlp;redaction;fintech;security</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/sanketsingh001/SecureRedact</RepositoryUrl>
@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <InternalsVisibleTo Include="FintechGuard.Pii.Tests" />
   </ItemGroup>
 
 </Project>

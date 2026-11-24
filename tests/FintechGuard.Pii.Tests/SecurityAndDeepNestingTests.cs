@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using FintechGuard.Pii.Core;
-using FluentAssertions;
 using Xunit;
 
 namespace FintechGuard.Pii.Tests;
@@ -52,16 +51,16 @@ public class SecurityAndDeepNestingTests
         string maskedJson = _engine.MaskJson(inputJson);
 
         // Verify all 10-level deep PII are masked
-        maskedJson.Should().NotContain("4532-0151-1283-0366");
-        maskedJson.Should().NotContain("2123 4567 8901");
-        maskedJson.Should().NotContain("customer.care@okhdfcbank");
-        maskedJson.Should().Contain("4532-****-****-0366#fp[");
+        Assert.DoesNotContain("4532-0151-1283-0366", maskedJson);
+        Assert.DoesNotContain("2123 4567 8901", maskedJson);
+        Assert.DoesNotContain("customer.care@okhdfcbank", maskedJson);
+        Assert.Contains("4532-****-****-0366#fp[", maskedJson);
 
         // Verify perfect round-trip unmasking
         string unmaskedJson = _engine.UnmaskJson(maskedJson);
-        unmaskedJson.Should().Contain("4532-0151-1283-0366");
-        unmaskedJson.Should().Contain("2123 4567 8901");
-        unmaskedJson.Should().Contain("customer.care@okhdfcbank");
+        Assert.Contains("4532-0151-1283-0366", unmaskedJson);
+        Assert.Contains("2123 4567 8901", unmaskedJson);
+        Assert.Contains("customer.care@okhdfcbank", unmaskedJson);
     }
 
     [Fact]
@@ -78,8 +77,8 @@ public class SecurityAndDeepNestingTests
         string tampered = masked[..charToFlip] + corruptedChar + masked[(charToFlip + 1)..];
 
         // UnmaskValue returns the tampered string without crash, or TryUnmaskValue returns false
-        _engine.TryUnmaskValue(tampered, out string? unmasked).Should().BeFalse();
-        unmasked.Should().BeNull();
+        Assert.False(_engine.TryUnmaskValue(tampered, out string? unmasked));
+        Assert.Null(unmasked);
     }
 
     [Fact]
@@ -94,7 +93,7 @@ public class SecurityAndDeepNestingTests
             .AddDefaultRecognizers()
             .Build();
 
-        unauthorizedEngine.TryUnmaskValue(masked, out string? unmasked).Should().BeFalse();
-        unmasked.Should().BeNull();
+        Assert.False(unauthorizedEngine.TryUnmaskValue(masked, out string? unmasked));
+        Assert.Null(unmasked);
     }
 }

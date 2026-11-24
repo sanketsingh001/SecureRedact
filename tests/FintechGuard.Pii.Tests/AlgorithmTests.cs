@@ -1,5 +1,4 @@
 using FintechGuard.Pii.Algorithms;
-using FluentAssertions;
 using Xunit;
 
 namespace FintechGuard.Pii.Tests;
@@ -12,7 +11,7 @@ public class AlgorithmTests
     [InlineData("212345678910", false)] // Transposition
     public void Verhoeff_ValidatesCorrectly(string digits, bool expected)
     {
-        VerhoeffValidator.Validate(digits.AsSpan()).Should().Be(expected);
+        Assert.Equal(expected, VerhoeffValidator.Validate(digits.AsSpan()));
     }
 
     [Theory]
@@ -22,7 +21,7 @@ public class AlgorithmTests
     [InlineData("1234567890123456", false)] // Random 16 digits fails Luhn
     public void Luhn_ValidatesCorrectly(string card, bool expected)
     {
-        LuhnValidator.ValidateWithSeparators(card.AsSpan()).Should().Be(expected);
+        Assert.Equal(expected, LuhnValidator.ValidateWithSeparators(card.AsSpan()));
     }
 
     [Theory]
@@ -31,7 +30,7 @@ public class AlgorithmTests
     [InlineData("DE89370400440532013001", false)] // Invalid check digit
     public void Iban_ValidatesCorrectly(string iban, bool expected)
     {
-        IbanValidator.Validate(iban.AsSpan()).Should().Be(expected);
+        Assert.Equal(expected, IbanValidator.Validate(iban.AsSpan()));
     }
 
     [Theory]
@@ -42,16 +41,17 @@ public class AlgorithmTests
     [InlineData("ABCPE12345", false)] // Last char must be letter
     public void Pan_ValidatesCorrectly(string pan, bool expected)
     {
-        PanValidator.Validate(pan.AsSpan()).Should().Be(expected);
+        Assert.Equal(expected, PanValidator.Validate(pan.AsSpan()));
     }
 
     [Theory]
-    [InlineData("27ABCPE1234F1Z5", true)] // 27 (Maharashtra) + valid PAN + 1 + Z + 5
-    [InlineData("99ABCPE1234F1Z5", false)] // State code 99 is invalid (only 01-38)
+    [InlineData("27ABCPE1234F1ZB", true)]  // 27 (Maharashtra) + valid PAN + 1 + Z + B (Mod-36 valid)
+    [InlineData("27ABCPE1234F1Z5", false)] // Invalid Mod-36 check character (must be 'B')
+    [InlineData("99ABCPE1234F1Z5", false)] // State code 99 is invalid (only 01-38, 97)
     [InlineData("27ABCPE1234F1A5", false)] // 14th char must be 'Z'
     public void Gstin_ValidatesCorrectly(string gstin, bool expected)
     {
-        GstinValidator.Validate(gstin.AsSpan()).Should().Be(expected);
+        Assert.Equal(expected, GstinValidator.Validate(gstin.AsSpan()));
     }
 
     [Theory]
@@ -63,6 +63,6 @@ public class AlgorithmTests
     [InlineData("123-45-0000", false)] // Serial 0000 invalid
     public void Ssn_ValidatesCorrectly(string ssn, bool expected)
     {
-        SsnValidator.Validate(ssn.AsSpan()).Should().Be(expected);
+        Assert.Equal(expected, SsnValidator.Validate(ssn.AsSpan()));
     }
 }

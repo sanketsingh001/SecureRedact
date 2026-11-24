@@ -1,6 +1,5 @@
 using System.Text.Json;
 using FintechGuard.Pii.Core;
-using FluentAssertions;
 using Xunit;
 
 namespace FintechGuard.Pii.Tests;
@@ -29,7 +28,7 @@ public class ArbitraryKeyNestedJsonTests
           "nested_level_1": {
             "k_field": "vikram.sharma@okhdfcbank",
             "arr": [
-              { "item_val": "27ABCPE1234F1Z5" },
+              { "item_val": "27ABCPE1234F1ZB" },
               { "safe_val": "EUR_CURRENCY_CODE" }
             ]
           }
@@ -39,21 +38,21 @@ public class ArbitraryKeyNestedJsonTests
         string maskedJson = _engine.MaskJson(inputJson);
 
         // 1. Raw sensitive values should NO LONGER be present in plaintext
-        maskedJson.Should().NotContain("4532-0151-1283-0366");
-        maskedJson.Should().NotContain("ABCPE1234F");
-        maskedJson.Should().NotContain("vikram.sharma@okhdfcbank");
-        maskedJson.Should().NotContain("27ABCPE1234F1Z5");
+        Assert.DoesNotContain("4532-0151-1283-0366", maskedJson);
+        Assert.DoesNotContain("ABCPE1234F", maskedJson);
+        Assert.DoesNotContain("vikram.sharma@okhdfcbank", maskedJson);
+        Assert.DoesNotContain("27ABCPE1234F1ZB", maskedJson);
 
         // 2. Safe non-PII values should remain completely untouched
-        maskedJson.Should().Contain("EUR_CURRENCY_CODE");
+        Assert.Contains("EUR_CURRENCY_CODE", maskedJson);
 
         // 3. Format-preserving visual cues should be present
-        maskedJson.Should().Contain("4532-****-****-0366");
-        maskedJson.Should().Contain("#fp[");
+        Assert.Contains("4532-****-****-0366", maskedJson);
+        Assert.Contains("#fp[", maskedJson);
 
         // 4. JSON must be syntactically valid JSON
-        var parsed = JsonDocument.Parse(maskedJson);
-        parsed.Should().NotBeNull();
+        using var parsed = JsonDocument.Parse(maskedJson);
+        Assert.NotNull(parsed);
     }
 
     [Fact]
@@ -84,7 +83,7 @@ public class ArbitraryKeyNestedJsonTests
         string originalNormalized = JsonSerializer.Serialize(docOriginal.RootElement);
         string restoredNormalized = JsonSerializer.Serialize(docRestored.RootElement);
 
-        restoredNormalized.Should().Be(originalNormalized);
+        Assert.Equal(originalNormalized, restoredNormalized);
     }
 
     [Fact]
@@ -98,12 +97,12 @@ public class ArbitraryKeyNestedJsonTests
         string json = """{ "card": "4532-0151-1283-0366" }""";
         string masked = oneWayEngine.MaskJson(json);
 
-        masked.Should().Contain("4532-****-****-0366");
-        masked.Should().NotContain("#fp[");
-        masked.Should().NotContain("ENC{");
+        Assert.Contains("4532-****-****-0366", masked);
+        Assert.DoesNotContain("#fp[", masked);
+        Assert.DoesNotContain("ENC{", masked);
 
         // Unmasking should leave one-way redacted value as-is
         string unmasked = oneWayEngine.UnmaskJson(masked);
-        unmasked.Should().Be(masked);
+        Assert.Equal(masked, unmasked);
     }
 }

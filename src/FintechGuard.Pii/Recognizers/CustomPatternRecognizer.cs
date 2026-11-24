@@ -4,9 +4,10 @@ using FintechGuard.Pii.Core;
 namespace FintechGuard.Pii.Recognizers;
 
 /// <summary>
-/// Allows consumers to register custom patterns, fintech entity codes, loan IDs, or custom rules.
+/// Allows consumers to register custom patterns, fintech entity codes, loan IDs, or custom rules
+/// with an enforced ReDoS match timeout.
 /// </summary>
-public sealed class CustomPatternRecognizer : IPiiRecognizer
+public sealed class CustomPatternRecognizer : IFastPiiRecognizer
 {
     private readonly Regex _regex;
     private readonly Func<string, bool>? _validator;
@@ -23,30 +24,44 @@ public sealed class CustomPatternRecognizer : IPiiRecognizer
         string? customTypeName = null,
         Func<string, bool>? validator = null,
         RegexOptions options = RegexOptions.Compiled,
-        double confidence = 0.95)
+        double confidence = 0.95,
+        TimeSpan? matchTimeout = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
 
         Name = name;
-        _regex = new Regex(pattern, options);
+        _regex = new Regex(pattern, options, matchTimeout ?? TimeSpan.FromMilliseconds(100));
         PiiType = piiType;
         CustomTypeName = customTypeName ?? name;
         _validator = validator;
         Confidence = confidence;
     }
 
+    public bool MightMatch(in TextFeatures features) => features.Length > 0;
+
     public IEnumerable<PiiMatch> Recognize(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
-            yield break;
+            return Array.Empty<PiiMatch>();
+
+        var list = new List<PiiMatch>();
+        var ctx = new RecognitionContext();
+        RecognizeInto(text, in ctx, TextFeatures.Analyze(text.AsSpan()), list);
+        return list;
+    }
+
+    public void RecognizeInto(string text, in RecognitionContext context, in TextFeatures features, List<PiiMatch> destination)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
 
         var matches = _regex.Matches(text);
         foreach (Match match in matches)
         {
             if (_validator == null || _validator(match.Value))
             {
-                yield return new PiiMatch
+                destination.Add(new PiiMatch
                 {
                     RawValue = match.Value,
                     Type = PiiType,
@@ -54,7 +69,7 @@ public sealed class CustomPatternRecognizer : IPiiRecognizer
                     Confidence = Confidence,
                     Index = match.Index,
                     Length = match.Length
-                };
+                });
             }
         }
     }

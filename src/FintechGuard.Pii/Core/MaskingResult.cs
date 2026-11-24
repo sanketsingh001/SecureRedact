@@ -9,6 +9,7 @@ public record PiiDetection
     public required string RecognizerName { get; init; }
     public required double Confidence { get; init; }
     public string? JsonPath { get; init; }
+    public string? FullJsonPath { get; init; }
 }
 
 /// <summary>
@@ -30,6 +31,11 @@ public record MaskingResult
     /// True if any PII was detected and masked.
     /// </summary>
     public required bool HasPii { get; init; }
+
+    /// <summary>
+    /// Elapsed processing duration in milliseconds.
+    /// </summary>
+    public double DurationMs { get; init; }
 
     /// <summary>
     /// The number of distinct PII elements masked.
